@@ -26,6 +26,7 @@ export function pageName(path: string) {
   if (path === "/feladatok") return "a Feladatok táblát";
   if (path.startsWith("/feladatok/")) return "egy feladat adatlapját";
   if (path === "/ugyfelek") return "az Ügyfelek listáját";
+  if (path.endsWith("/szerkesztes")) return "egy ügyfél szerkesztését";
   if (path.startsWith("/ugyfelek/")) return "egy ügyfél adatlapját";
   if (path === "/uzenofal") return "az Üzenőfalat";
   if (path === "/jegyzetek") return "a Jegyzeteket";

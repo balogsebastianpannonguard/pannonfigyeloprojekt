@@ -5,10 +5,11 @@
 //
 // Éles adatbázisba csak akkor ír, ha IMPORT_CONFIRM pontosan a MONGODB_DB nevével egyezik.
 // A vevőkód alapján frissít (upsert), és egy bejegyzést ír a közös naplóba.
+// A felületen már szerkesztett ügyfeleket NEM írja felül (kihagyja és kiírja őket), hacsak nincs IMPORT_OVERWRITE_EDITED=igen.
 import { readFileSync } from "node:fs";
 import { MongoClient, ObjectId } from "mongodb";
 
-const { MONGODB_URI, MONGODB_DB, IMPORT_CONFIRM } = process.env;
+const { MONGODB_URI, MONGODB_DB, IMPORT_CONFIRM, IMPORT_OVERWRITE_EDITED } = process.env;
 const file = process.argv[2];
 if (!file) throw new Error("Add meg a JSON fájl útvonalát.");
 if (!MONGODB_DB.endsWith("_teszt") && IMPORT_CONFIRM !== MONGODB_DB) {
@@ -55,6 +56,7 @@ await db.collection("clients").createIndex({ key: 1 }, { unique: true });
 const importedAt = new Date();
 const names = [];
 const fixed = [];
+const skipped = [];
 for (const row of data.rows) {
   const cols = row.cols.map((column) => {
     const normalized = column.col === "N" ? normalizeIds(column.value) : column.col === "R" ? normalizeAddresses(column.value) : column.value;
@@ -67,6 +69,11 @@ for (const row of data.rows) {
   const text = (col) => (value(col) === null || value(col) === undefined ? "" : String(value(col)).trim());
   const key = text("B");
   const name = text("C") || key;
+  const existing = await db.collection("clients").findOne({ key }, { projection: { updatedAt: 1 } });
+  if (existing?.updatedAt && IMPORT_OVERWRITE_EDITED !== "igen") {
+    skipped.push(name);
+    continue;
+  }
   if (cols.some((c) => "raw" in c)) fixed.push(name);
   const summary = {
     name,
@@ -96,6 +103,7 @@ for (const row of data.rows) {
   );
   names.push(name);
 }
+if (skipped.length) console.log(`Kihagyva, mert a felületen szerkesztették: ${skipped.join(", ")}`);
 const fixNote = fixed.length ? ` Szétválasztott, összeragadt objektumazonosító/cím: ${fixed.join(", ")}.` : "";
 await db.collection("log").insertOne({
   _id: new ObjectId(),

@@ -2,96 +2,78 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
-import { ArrowLeft, Banknote, Building2, CircleCheck, FileSignature, FileSpreadsheet, MessageSquareWarning, PhoneCall, Radar, Rows3, type LucideIcon } from "lucide-react";
-import { ClientField } from "@/components/client-bits";
+import { ArrowLeft, CircleCheck, FileSpreadsheet, History, PencilLine } from "lucide-react";
+import { ClientSections } from "@/components/client-sections";
+import { LogRow } from "@/components/log-row";
 import { PageTitle } from "@/components/page-title";
-import { Panel, Pill, Skeleton } from "@/components/ui";
-import { clientName, getClient, type ClientColumn } from "@/lib/clients";
-import { formatStamp } from "@/lib/dates";
+import { Panel, Pill, Skeleton, buttonClass } from "@/components/ui";
+import { clientName, getClient } from "@/lib/clients";
+import { formatAgo, formatStamp } from "@/lib/dates";
+import { listLog } from "@/lib/log";
 import { requireUser } from "@/lib/session";
+import { nameMap } from "@/lib/workspace";
 
 export const metadata: Metadata = { title: "Ügyfél" };
 
-/** Az Excel oszlopai témák szerint (a „Mind” munkalap oszlopbetűi). A fel nem sorolt oszlopok az „Egyéb” részbe kerülnek. */
-const SECTIONS: { title: string; icon: LucideIcon; cols: string[] }[] = [
-  { title: "Alapadatok", icon: Building2, cols: ["A", "B", "C", "D", "E", "F", "G", "H"] },
-  { title: "Szerződés és számlázás", icon: FileSignature, cols: ["I", "J", "K", "AA"] },
-  { title: "Objektumok és felügyelet", icon: Radar, cols: ["L", "M", "N", "Q", "R"] },
-  { title: "Kapcsolattartás", icon: PhoneCall, cols: ["O", "P"] },
-  { title: "Fizetési helyzet", icon: Banknote, cols: ["S", "T", "U", "V", "W", "X", "Y"] },
-  { title: "Megjegyzés", icon: MessageSquareWarning, cols: ["Z"] },
-];
-
-export default function ClientPage({ params }: PageProps<"/ugyfelek/[id]">) {
+export default function ClientPage({ params, searchParams }: PageProps<"/ugyfelek/[id]">) {
   return (
     <Suspense fallback={<Skeleton className="h-[40rem]" />}>
-      <Client params={params} />
+      <Client params={params} searchParams={searchParams} />
     </Suspense>
   );
 }
 
-async function Client({ params }: Pick<PageProps<"/ugyfelek/[id]">, "params">) {
+async function Client({ params, searchParams }: Pick<PageProps<"/ugyfelek/[id]">, "params" | "searchParams">) {
   await requireUser();
-  const { id } = await params;
+  const [{ id }, query] = await Promise.all([params, searchParams]);
   const client = await getClient(id);
   if (!client) notFound();
-
-  const byCol = new Map(client.cols.map((column) => [column.col, column]));
-  const listed = new Set(SECTIONS.flatMap((section) => section.cols));
-  const rest = client.cols.filter((column) => !listed.has(column.col));
-  const note = byCol.get("Z")?.value;
-  const marked = client.cols.filter((column) => column.mark).length;
+  const [names, history] = await Promise.all([nameMap(), listLog({ targetId: id }, { limit: 60 })]);
+  const now = new Date();
+  const saved = typeof query.mentve === "string" ? Number(query.mentve) : 0;
 
   return (
     <div className="space-y-8">
       <Link href="/ugyfelek" className="inline-flex items-center gap-1.5 text-sm text-white/55 transition hover:text-white">
         <ArrowLeft size={15} aria-hidden /> Vissza az ügyfelekhez
       </Link>
+
+      {saved > 0 && (
+        <p role="status" className="pg-rise flex items-center gap-2 rounded-2xl border border-emerald-400/25 bg-emerald-400/10 px-4 py-3 text-sm text-emerald-100">
+          <CircleCheck size={17} aria-hidden className="text-emerald-300" /> Mentve – {saved} változás került a naplóba.
+        </p>
+      )}
+
       <div className="flex flex-wrap items-start justify-between gap-4">
         <PageTitle eyebrow={`Ügyfél · ${client.key}`} title={clientName(client)}>
-          Az Excel-sor minden adata, oszlopról oszlopra. Ami a táblázatban pirossal vagy sárgával ki volt emelve, itt is úgy látszik.
+          Az Excel-sor minden adata, oszlopról oszlopra; a kiemelt cellák úgy látszanak, ahogy a táblázatban.
         </PageTitle>
-        <Pill tone="ok" icon={CircleCheck}>
-          {client.status}
-        </Pill>
-      </div>
-
-      {note ? (
-        <div className="flex gap-3 rounded-2xl border border-gold/25 bg-gold/8 p-4 text-sm">
-          <MessageSquareWarning size={19} aria-hidden className="mt-0.5 shrink-0 text-gold" />
-          <p className={byCol.get("Z")?.mark === "piros" ? "font-medium text-red-200" : "text-gold-bright"}>{String(note)}</p>
+        <div className="flex flex-wrap items-center gap-2">
+          {client.status && <Pill tone={client.status === "RENDBEN" ? "ok" : "error"}>{client.status}</Pill>}
+          <Link href={`/ugyfelek/${id}/szerkesztes`} className={buttonClass("primary")}>
+            <PencilLine size={16} aria-hidden /> Szerkesztés
+          </Link>
         </div>
-      ) : null}
-
-      <div className="grid gap-6 lg:grid-cols-2">
-        {SECTIONS.map((section) => {
-          const columns = section.cols.map((col) => byCol.get(col)).filter((column): column is ClientColumn => Boolean(column));
-          if (!columns.length) return null;
-          return (
-            <Panel key={section.title} title={section.title} icon={section.icon} className={section.title === "Megjegyzés" ? "lg:col-span-2" : ""}>
-              <dl className="space-y-1">
-                {columns.map((column) => (
-                  <ClientField key={column.col} column={column} />
-                ))}
-              </dl>
-            </Panel>
-          );
-        })}
-        {rest.length > 0 && (
-          <Panel title="Egyéb" icon={Rows3} className="lg:col-span-2">
-            <dl className="space-y-1">
-              {rest.map((column) => (
-                <ClientField key={column.col} column={column} />
-              ))}
-            </dl>
-          </Panel>
-        )}
       </div>
+
+      <ClientSections cols={client.cols} />
+
+      <Panel title="Előzmények" icon={History} action={<span className="text-xs text-white/45">ki, mikor nézte meg vagy módosította</span>}>
+        {history.rows.length === 0 ? (
+          <p className="text-sm text-white/50">Még nincs bejegyzés.</p>
+        ) : (
+          <ul className="divide-y divide-white/6">
+            {history.rows.map((entry) => (
+              <LogRow key={String(entry._id)} entry={entry} now={now} detailed />
+            ))}
+          </ul>
+        )}
+      </Panel>
 
       <p className="flex flex-wrap items-center gap-2 text-xs text-white/40">
         <FileSpreadsheet size={14} aria-hidden className="text-gold/70" />
-        {client.source.file} · „{client.source.sheet}” munkalap, {client.source.row}. sor · {client.cols.length} oszlop
-        {marked > 0 && ` · ${marked} kiemelt mező`} · importálva {formatStamp(client.source.importedAt)}
+        {client.source.file} · „{client.source.sheet}” munkalap, {client.source.row}. sor · {client.cols.length} oszlop · importálva {formatStamp(client.source.importedAt)}
+        {client.updatedAt && ` · utoljára szerkesztette ${names.get(String(client.updatedBy)) ?? "?"}, ${formatAgo(client.updatedAt, now)}`}
       </p>
     </div>
   );

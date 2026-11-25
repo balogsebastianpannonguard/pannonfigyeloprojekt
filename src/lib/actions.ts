@@ -8,6 +8,7 @@ import { DAY, longText, text, type FormState } from "@/lib/form";
 import { writeLog, type Change } from "@/lib/log";
 import { TASK_PRIORITY, TASK_STATUS, isPriority, isStatus, pageName, type TaskStatus } from "@/lib/meta";
 import { requireUser } from "@/lib/session";
+import { clientName, getClient } from "@/lib/clients";
 import { users } from "@/lib/users";
 import { commentsCol, getNote, getTask, notesCol, oid, postsCol, tasksCol } from "@/lib/workspace";
 
@@ -31,7 +32,27 @@ async function assignee(raw: string) {
 export async function trackView(path: string) {
   if (typeof path !== "string" || !/^\/[\w\-/?=&%.]{0,200}$/.test(path)) return;
   const user = await requireUser();
-  await writeLog(user, { kind: "view", action: "page.view", text: `megnyitotta ${pageName(path.split("?")[0])}`, path });
+  const [pathname, search = ""] = path.split("?");
+  // Ügyféloldalaknál a naplóba az ügyfél neve is bekerül (ki melyik ügyfelet nézte meg).
+  const clientPage = pathname.match(/^\/ugyfelek\/([0-9a-f]{24})(\/szerkesztes)?$/i);
+  const previewId = pathname === "/ugyfelek" ? new URLSearchParams(search).get("elonezet") : null;
+  const clientId = clientPage?.[1] ?? (previewId && /^[0-9a-f]{24}$/i.test(previewId) ? previewId : null);
+  if (clientId) {
+    const client = await getClient(clientId);
+    if (client) {
+      const name = clientName(client);
+      const what = clientPage?.[2] ? "szerkesztésre nyitotta meg" : clientPage ? "megnyitotta az adatlapját:" : "megnézte az előnézetét:";
+      await writeLog(user, {
+        kind: "view",
+        action: clientPage?.[2] ? "client.edit.open" : clientPage ? "client.view" : "client.preview",
+        text: clientPage?.[2] ? `szerkesztésre nyitotta meg a(z) „${name}” ügyfél adatlapját` : `${what} „${name}”`,
+        target: { type: "client", id: clientId, label: name },
+        path,
+      });
+      return;
+    }
+  }
+  await writeLog(user, { kind: "view", action: "page.view", text: `megnyitotta ${pageName(pathname)}`, path });
 }
 
 /* ---------- Feladatok ---------- */

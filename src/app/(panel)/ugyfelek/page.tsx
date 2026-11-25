@@ -1,26 +1,37 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
-import { ArrowDown, ArrowUp, ArrowUpDown, Building2, ChevronLeft, ChevronRight, FileSpreadsheet, Search, TriangleAlert } from "lucide-react";
-import { IdChips } from "@/components/client-bits";
+import { ArrowDown, ArrowUp, ArrowUpDown, Building2, ChevronLeft, ChevronRight, ExternalLink, FileSpreadsheet, History, PencilLine, Search, X } from "lucide-react";
+import { ClickableRow } from "@/components/clickable-row";
+import { ClientSections } from "@/components/client-sections";
+import { TableCell } from "@/components/client-bits";
+import { CloseOnEscape } from "@/components/close-on-escape";
+import { LogRow } from "@/components/log-row";
 import { PageTitle } from "@/components/page-title";
-import { Empty, Input, Label, Select, Skeleton, buttonClass } from "@/components/ui";
-import { CLIENT_SORTS, clientSource, listClientRows, type ClientQuery, type ClientSort } from "@/lib/clients";
-import { formatStamp } from "@/lib/dates";
+import { Empty, Input, Label, Pill, Select, Skeleton, buttonClass } from "@/components/ui";
+import { LONG_COLS } from "@/lib/client-fields";
+import { CLIENT_SORTS, clientName, clientSource, getClient, listClientRows, type ClientQuery, type ClientSort } from "@/lib/clients";
+import { formatAgo, formatStamp } from "@/lib/dates";
+import { listLog } from "@/lib/log";
 import { requireUser } from "@/lib/session";
+import { nameMap } from "@/lib/workspace";
 
 export const metadata: Metadata = { title: "Ügyfelek" };
 
 const PAGE_SIZE = 50;
-const ft = new Intl.NumberFormat("hu-HU", { maximumFractionDigits: 0 });
 const one = (value: string | string[] | undefined) => (typeof value === "string" ? value : "");
+
+/** A táblázat oszlopai az Excel sorrendjében; a név (C) és a vevőkód (B) a rögzített első oszlopban van. */
+const TABLE_COLS = ["A", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z", "AA"];
+/** Melyik oszlop szerint lehet rendezni. */
+const SORT_BY_COL: Record<string, ClientSort> = { A: "statusz", F: "telepules", I: "szamlazas", K: "dij", S: "tartozas", AA: "szerzodes" };
 
 export default function ClientsPage({ searchParams }: PageProps<"/ugyfelek">) {
   return (
     <div className="space-y-8">
       <PageTitle eyebrow="Ügyfelek" title="Átnézett" accent="ügyfelek.">
-        Az ügyféllistából importált ügyfelek. Kereshetsz névre, vevőkódra, címre, objektumazonosítóra vagy telefonszámra; az oszlopfejlécre kattintva
-        rendezhetsz. Egy sorra kattintva megnyílik a teljes adatlap.
+        Az ügyféllista minden oszlopa, ahogy az Excelben – a kiemelt cellák ugyanúgy sárga háttérrel vagy piros betűvel. Kattints egy sorra az előnézethez;
+        onnan szerkesztheted is. Minden megnyitás és módosítás naplózva van.
       </PageTitle>
       <Suspense fallback={<Skeleton className="h-[32rem]" />}>
         <Clients searchParams={searchParams} />
@@ -43,9 +54,11 @@ async function Clients({ searchParams }: Pick<PageProps<"/ugyfelek">, "searchPar
     desc: one(params.irany) === "le",
   };
   const page = Math.max(1, Math.min(1000, Number(one(params.oldal)) || 1));
+  const previewId = one(params.elonezet);
   const [{ rows, total, options }, latest] = await Promise.all([listClientRows(query, { limit: PAGE_SIZE, skip: (page - 1) * PAGE_SIZE }), clientSource()]);
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const filtered = Boolean(query.q || query.freq || query.contract || query.status || query.marked);
+  const labels = new Map((rows[0]?.cols ?? []).map((column) => [column.col, column.label]));
 
   const link = (overrides: Record<string, string>) => {
     const search = new URLSearchParams();
@@ -57,19 +70,27 @@ async function Clients({ searchParams }: Pick<PageProps<"/ugyfelek">, "searchPar
       kiemelt: query.marked ? "igen" : "",
       rendezes: query.sort === "sor" ? "" : (query.sort ?? ""),
       irany: query.desc ? "le" : "",
+      oldal: page > 1 ? String(page) : "",
       ...overrides,
     };
     for (const [key, value] of Object.entries(merged)) if (value) search.set(key, value);
     return `/ugyfelek${search.size ? `?${search}` : ""}`;
   };
 
-  function SortHeader({ id, label, className = "" }: { id: ClientSort; label: string; className?: string }) {
-    const active = query.sort === id;
+  const header = ({ label, sort, className = "" }: { label: string; sort?: ClientSort; className?: string }, key?: string) => {
+    if (!sort) {
+      return (
+        <th key={key} scope="col" className={`px-3 py-3 font-semibold whitespace-nowrap ${className}`}>
+          {label}
+        </th>
+      );
+    }
+    const active = query.sort === sort;
     const Icon = active ? (query.desc ? ArrowDown : ArrowUp) : ArrowUpDown;
     return (
-      <th scope="col" className={`px-3 py-3 font-semibold ${className}`} aria-sort={active ? (query.desc ? "descending" : "ascending") : undefined}>
+      <th key={key} scope="col" className={`px-3 py-3 font-semibold ${className}`} aria-sort={active ? (query.desc ? "descending" : "ascending") : undefined}>
         <Link
-          href={link({ rendezes: id === "sor" ? "" : id, irany: active && !query.desc ? "le" : "", oldal: "" })}
+          href={link({ rendezes: sort === "sor" ? "" : sort, irany: active && !query.desc ? "le" : "", oldal: "", elonezet: "" })}
           className={`inline-flex items-center gap-1 whitespace-nowrap transition hover:text-white ${active ? "text-gold" : ""}`}
         >
           {label}
@@ -77,7 +98,7 @@ async function Clients({ searchParams }: Pick<PageProps<"/ugyfelek">, "searchPar
         </Link>
       </th>
     );
-  }
+  };
 
   return (
     <div className="space-y-5">
@@ -130,7 +151,7 @@ async function Clients({ searchParams }: Pick<PageProps<"/ugyfelek">, "searchPar
         </div>
         <label className="flex items-center gap-2 text-sm text-white/65 sm:col-span-2 lg:col-span-5">
           <input type="checkbox" name="kiemelt" value="igen" defaultChecked={query.marked} className="size-4 accent-gold" />
-          Csak azok, akiknél az Excelben van kiemelt (piros vagy sárga) mező
+          Csak azok, akiknél az Excelben van kiemelt (piros vagy sárga) cella
         </label>
       </form>
 
@@ -138,68 +159,50 @@ async function Clients({ searchParams }: Pick<PageProps<"/ugyfelek">, "searchPar
         <Empty icon={Building2} title={filtered ? "Nincs találat" : "Még nincs ügyfél"} text={filtered ? "Próbálj más keresést vagy szűrést." : "Az ügyfelek az Excel-listából kerülnek ide."} />
       ) : (
         <section className="pg-panel overflow-hidden rounded-3xl">
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/8 px-5 py-3 text-sm">
+          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-white/8 px-5 py-3 text-sm">
             <p className="font-semibold">
               {total.toLocaleString("hu-HU")} ügyfél
               {filtered && <span className="font-normal text-white/50"> a szűrésnek megfelelően</span>}
             </p>
-            <p className="text-white/45">
-              {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, total)}. sor
+            <p className="flex flex-wrap items-center gap-4 text-xs text-white/50">
+              <span className="inline-flex items-center gap-1.5">
+                <span className="size-3 rounded-sm bg-yellow-300/25 ring-1 ring-yellow-300/40" /> sárga az Excelben
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <span className="font-semibold text-red-300">Aa</span> piros az Excelben
+              </span>
+              <span>
+                {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, total)}. sor · görgesd oldalra a többi oszlophoz
+              </span>
             </p>
           </div>
-          <div className="overflow-x-auto [scrollbar-width:thin]">
-            <table className="w-full min-w-[60rem] text-left text-sm">
-              <thead className="bg-white/3 text-xs text-white/55">
+          <div className="max-h-[75vh] overflow-auto [scrollbar-width:thin]">
+            <table className="w-max min-w-full border-separate border-spacing-0 text-left text-sm">
+              <thead className="sticky top-0 z-20 bg-ink-900 text-xs text-white/55 [&_th]:border-b [&_th]:border-white/10">
                 <tr>
-                  <SortHeader id="sor" label="Sor" className="w-14" />
-                  <SortHeader id="nev" label="Ügyfél" />
-                  <SortHeader id="telepules" label="Település" />
-                  <SortHeader id="szamlazas" label="Számlázás" />
-                  <SortHeader id="dij" label="Éves díj" className="text-right" />
-                  <th scope="col" className="px-3 py-3 font-semibold">
-                    Objektumazonosítók
-                  </th>
-                  <th scope="col" className="px-3 py-3 font-semibold">
-                    Telefon
-                  </th>
-                  <SortHeader id="szerzodes" label="Szerződés?" />
+                  {header({ label: "Sor", sort: "sor", className: "sticky left-0 z-30 w-14 bg-ink-900" })}
+                  {header({ label: "Ügyfél", sort: "nev", className: "sticky left-14 z-30 min-w-64 bg-ink-900 shadow-[1px_0_0_rgb(255_255_255/0.08)]" })}
+                  {TABLE_COLS.map((col) => header({ label: labels.get(col) ?? col, sort: SORT_BY_COL[col] }, col))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-white/6">
+              <tbody className="[&_td]:border-b [&_td]:border-white/6">
                 {rows.map((row) => {
-                  const s = row.summary;
-                  const href = `/ugyfelek/${row._id}`;
+                  const byCol = new Map(row.cols.map((column) => [column.col, column]));
+                  const id = String(row._id);
+                  const active = previewId === id;
                   return (
-                    <tr key={String(row._id)} className="group transition-colors hover:bg-gold/5">
-                      <td className="px-3 py-3 align-top text-xs text-white/40 tabular-nums">{row.source.row}.</td>
-                      <td className="max-w-[18rem] px-3 py-3 align-top">
-                        <Link href={href} className="font-semibold [overflow-wrap:anywhere] group-hover:text-gold">
-                          {s.name}
+                    <ClickableRow key={id} href={link({ elonezet: id })} active={active}>
+                      <td className={`sticky left-0 z-10 px-3 py-2.5 align-top text-xs text-white/40 tabular-nums ${active ? "bg-[#1a1d26]" : "bg-ink-900 group-hover:bg-[#15171f]"}`}>{row.source.row}.</td>
+                      <td className={`sticky left-14 z-10 min-w-64 px-3 py-2.5 align-top shadow-[1px_0_0_rgb(255_255_255/0.08)] ${active ? "bg-[#1a1d26]" : "bg-ink-900 group-hover:bg-[#15171f]"}`}>
+                        <Link href={link({ elonezet: id })} scroll={false} className="block max-w-64 font-semibold [overflow-wrap:anywhere] group-hover:text-gold">
+                          {row.summary.name}
                         </Link>
-                        <p className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-white/45">
-                          <span>{row.key}</span>
-                          {s.status && <span className={s.status === "RENDBEN" ? "text-emerald-300/80" : "text-red-300/80"}>{s.status}</span>}
-                          {s.marks > 0 && (
-                            <span className="inline-flex items-center gap-1 text-yellow-200/80" title="Az Excelben kiemelt mezők">
-                              <TriangleAlert size={11} aria-hidden /> {s.marks}
-                            </span>
-                          )}
-                        </p>
+                        <span className="mt-0.5 block text-xs text-white/45">{row.key}</span>
                       </td>
-                      <td className="px-3 py-3 align-top whitespace-nowrap text-white/75">
-                        {s.city || "—"}
-                        {s.zip && <span className="block text-xs text-white/40">{s.zip}</span>}
-                      </td>
-                      <td className="px-3 py-3 align-top whitespace-nowrap text-white/75">{s.freq || "—"}</td>
-                      <td className="px-3 py-3 text-right align-top whitespace-nowrap text-gold tabular-nums">{s.fee !== null ? `${ft.format(s.fee)} Ft` : "—"}</td>
-                      <td className="px-3 py-3 align-top">
-                        <IdChips ids={s.ids} max={4} />
-                      </td>
-                      <td className="px-3 py-3 align-top text-xs whitespace-nowrap text-white/70">
-                        {s.phone ? s.phone.split(/,\s*/).map((phone) => <span key={phone} className="block">{phone}</span>) : "—"}
-                      </td>
-                      <td className="px-3 py-3 align-top text-white/75">{s.contract || "—"}</td>
-                    </tr>
+                      {TABLE_COLS.map((col) => (
+                        <TableCell key={col} column={byCol.get(col)} wide={LONG_COLS.has(col)} />
+                      ))}
+                    </ClickableRow>
                   );
                 })}
               </tbody>
@@ -208,7 +211,7 @@ async function Clients({ searchParams }: Pick<PageProps<"/ugyfelek">, "searchPar
           {pages > 1 && (
             <nav aria-label="Lapozás" className="flex items-center justify-between gap-3 border-t border-white/8 px-5 py-3 text-sm">
               {page > 1 ? (
-                <Link href={link({ oldal: String(page - 1) })} className={buttonClass("ghost", "sm")}>
+                <Link href={link({ oldal: String(page - 1), elonezet: "" })} className={buttonClass("ghost", "sm")}>
                   <ChevronLeft size={15} aria-hidden /> Előző
                 </Link>
               ) : (
@@ -218,7 +221,7 @@ async function Clients({ searchParams }: Pick<PageProps<"/ugyfelek">, "searchPar
                 {page}. / {pages} oldal
               </span>
               {page < pages ? (
-                <Link href={link({ oldal: String(page + 1) })} className={buttonClass("ghost", "sm")}>
+                <Link href={link({ oldal: String(page + 1), elonezet: "" })} className={buttonClass("ghost", "sm")}>
                   Következő <ChevronRight size={15} aria-hidden />
                 </Link>
               ) : (
@@ -228,6 +231,71 @@ async function Clients({ searchParams }: Pick<PageProps<"/ugyfelek">, "searchPar
           )}
         </section>
       )}
+
+      {previewId && <Preview id={previewId} closeHref={link({ elonezet: "" })} />}
+    </div>
+  );
+}
+
+/** Előnézet jobb oldali panelben: az ügyfél minden adata, gyors szerkesztés- és adatlap-gombbal, a legutóbbi eseményekkel. */
+async function Preview({ id, closeHref }: { id: string; closeHref: string }) {
+  const client = await getClient(id);
+  if (!client) return null;
+  const [names, history] = await Promise.all([nameMap(), listLog({ targetId: id }, { limit: 6 })]);
+  const now = new Date();
+  const name = clientName(client);
+  return (
+    <div className="fixed inset-0 z-40" role="dialog" aria-modal="true" aria-label={`${name} – előnézet`}>
+      <CloseOnEscape href={closeHref} />
+      <Link href={closeHref} scroll={false} aria-label="Előnézet bezárása" className="absolute inset-0 bg-ink-950/70 backdrop-blur-sm" />
+      <aside className="pg-rise absolute inset-y-0 right-0 flex w-full max-w-2xl flex-col border-l border-white/10 bg-ink-900 shadow-2xl [animation-duration:0.35s]">
+        <header className="border-b border-white/8 p-5 sm:p-6">
+          <div className="flex items-start gap-3">
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-semibold tracking-[0.2em] text-gold uppercase">Előnézet · Excel {client.source.row}. sor</p>
+              <h2 className="mt-1 font-display text-2xl leading-tight font-semibold [overflow-wrap:anywhere]">{name}</h2>
+              <p className="mt-1 flex flex-wrap items-center gap-2 text-sm text-white/50">
+                {client.key}
+                {client.status && <Pill tone={client.status === "RENDBEN" ? "ok" : "error"}>{client.status}</Pill>}
+              </p>
+            </div>
+            <Link href={closeHref} scroll={false} aria-label="Bezárás" className="grid size-10 shrink-0 place-items-center rounded-xl text-white/60 transition hover:bg-white/8 hover:text-white">
+              <X size={20} aria-hidden />
+            </Link>
+          </div>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Link href={`/ugyfelek/${id}/szerkesztes`} className={buttonClass("primary", "sm")}>
+              <PencilLine size={15} aria-hidden /> Szerkesztés
+            </Link>
+            <Link href={`/ugyfelek/${id}`} className={buttonClass("secondary", "sm")}>
+              <ExternalLink size={15} aria-hidden /> Teljes adatlap
+            </Link>
+          </div>
+          {client.updatedAt && (
+            <p className="mt-3 text-xs text-white/45">
+              Utoljára szerkesztette {names.get(String(client.updatedBy)) ?? "?"}, {formatAgo(client.updatedAt, now)}
+            </p>
+          )}
+        </header>
+        <div className="flex-1 overflow-y-auto p-5 [scrollbar-width:thin] sm:p-6">
+          <ClientSections cols={client.cols} compact />
+          {history.rows.length > 0 && (
+            <section className="mt-8">
+              <h3 className="mb-2 flex items-center gap-2 text-xs font-semibold tracking-[0.18em] text-gold uppercase">
+                <History size={14} aria-hidden /> Legutóbbi események
+              </h3>
+              <ul className="divide-y divide-white/6">
+                {history.rows.map((entry) => (
+                  <LogRow key={String(entry._id)} entry={entry} now={now} />
+                ))}
+              </ul>
+              <Link href={`/ugyfelek/${id}`} className="mt-2 inline-block text-sm text-gold underline-offset-4 hover:underline">
+                Összes esemény az adatlapon →
+              </Link>
+            </section>
+          )}
+        </div>
+      </aside>
     </div>
   );
 }

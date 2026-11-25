@@ -1,5 +1,6 @@
 import "server-only";
 import type { Filter, ObjectId, Sort } from "mongodb";
+import type { ColumnLike } from "@/lib/client-fields";
 import { getDb } from "@/lib/mongodb";
 import { oid } from "@/lib/workspace";
 
@@ -8,7 +9,7 @@ import { oid } from "@/lib/workspace";
  * kiemelésükkel (piros betű / sárga háttér) együtt tárolódnak, így a felület a teljes sort meg tudja mutatni.
  * Ha az import javított egy értéket (pl. összeragadt objektumazonosítók), az eredeti a `raw` mezőben marad.
  */
-export type ClientColumn = { col: string; label: string; value: string | number | null; mark?: "piros" | "sarga"; raw?: string | number | null };
+export type ClientColumn = ColumnLike;
 
 /** A táblázathoz előre kiszámolt mezők (az importszkript tölti ki). */
 export type ClientSummary = {
@@ -38,6 +39,9 @@ export type ClientDocument = {
   /** Kisbetűs keresőszöveg (név, vevőkód, cím, azonosítók, telefon, megjegyzés). */
   search: string;
   source: { file: string; sheet: string; row: number; importedAt: Date };
+  /** Utolsó szerkesztés a felületen. */
+  updatedAt?: Date;
+  updatedBy?: ObjectId;
 };
 
 export const clientsCol = async () => (await getDb()).collection<ClientDocument>("clients");
@@ -51,6 +55,7 @@ export async function getClient(id: string) {
 export const CLIENT_SORTS = {
   sor: "order",
   nev: "summary.name",
+  statusz: "status",
   telepules: "summary.city",
   szamlazas: "summary.freq",
   dij: "summary.fee",
@@ -80,7 +85,7 @@ export async function listClientRows(query: ClientQuery, { limit = 50, skip = 0 
 
   const [rows, total, freqs, contracts, statuses] = await Promise.all([
     collection
-      .find(filter, { projection: { key: 1, order: 1, summary: 1, "source.row": 1 } })
+      .find(filter, { projection: { key: 1, order: 1, summary: 1, cols: 1, "source.row": 1 } })
       .collation({ locale: "hu", numericOrdering: true })
       .sort(sort)
       .skip(skip)
