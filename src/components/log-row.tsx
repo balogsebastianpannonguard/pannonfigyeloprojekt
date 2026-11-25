@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Eye, KanbanSquare, KeyRound, MessageSquareText, MessagesSquare, NotebookPen, Download, type LucideIcon } from "lucide-react";
+import { Building2, Eye, KanbanSquare, KeyRound, MessageSquareText, MessagesSquare, NotebookPen, Download, type LucideIcon } from "lucide-react";
 import { Avatar } from "@/components/avatar";
 import { formatAgo, formatStamp } from "@/lib/dates";
 import type { LogEntry, LogKind } from "@/lib/log";
@@ -11,6 +11,7 @@ const ICONS: Record<LogKind, { icon: LucideIcon; tone: string }> = {
   comment: { icon: MessageSquareText, tone: "bg-gold/10 text-gold-bright" },
   post: { icon: MessagesSquare, tone: "bg-iris/18 text-iris-bright" },
   note: { icon: NotebookPen, tone: "bg-emerald-400/12 text-emerald-200" },
+  client: { icon: Building2, tone: "bg-gold/14 text-gold" },
   export: { icon: Download, tone: "bg-white/8 text-white/70" },
 };
 
@@ -19,6 +20,7 @@ function targetHref(target?: LogEntry["target"]) {
   if (target.type === "task") return `/feladatok/${target.id}`;
   if (target.type === "note") return `/jegyzetek/${target.id}`;
   if (target.type === "post") return "/uzenofal";
+  if (target.type === "client") return target.id ? `/ugyfelek/${target.id}` : "/ugyfelek";
   return undefined;
 }
 

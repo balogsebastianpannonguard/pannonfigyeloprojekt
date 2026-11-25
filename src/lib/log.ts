@@ -8,7 +8,7 @@ import { getDb } from "@/lib/mongodb";
  * A közös napló: minden belépés, oldalmegnyitás és művelet ide kerül, a végrehajtó nevével, idővel, IP-címmel és
  * eszközzel. A napló csak bővül; a felületen nincs olyan művelet, amely törölne vagy módosítana benne.
  */
-export type LogKind = "auth" | "view" | "task" | "comment" | "post" | "note" | "export";
+export type LogKind = "auth" | "view" | "task" | "comment" | "post" | "note" | "client" | "export";
 
 export const LOG_KINDS: Record<LogKind, string> = {
   auth: "Belépés, fiók",
@@ -17,6 +17,7 @@ export const LOG_KINDS: Record<LogKind, string> = {
   comment: "Hozzászólás",
   post: "Üzenőfal",
   note: "Jegyzet",
+  client: "Ügyfél",
   export: "Exportálás",
 };
 

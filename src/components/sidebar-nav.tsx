@@ -3,7 +3,7 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { History, KanbanSquare, LayoutDashboard, MessagesSquare, NotebookPen, ShieldCheck, UsersRound, type LucideIcon } from "lucide-react";
+import { Building2, History, KanbanSquare, LayoutDashboard, MessagesSquare, NotebookPen, ShieldCheck, UsersRound, type LucideIcon } from "lucide-react";
 
 type NavGroup = { title: string; links: { href: string; label: string; icon: LucideIcon }[] };
 
@@ -13,6 +13,7 @@ const GROUPS: NavGroup[] = [
     links: [
       { href: "/", label: "Áttekintés", icon: LayoutDashboard },
       { href: "/feladatok", label: "Feladatok", icon: KanbanSquare },
+      { href: "/ugyfelek", label: "Ügyfelek", icon: Building2 },
       { href: "/uzenofal", label: "Üzenőfal", icon: MessagesSquare },
       { href: "/jegyzetek", label: "Jegyzetek", icon: NotebookPen },
     ],
