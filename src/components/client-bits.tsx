@@ -7,6 +7,26 @@ const COUNT = new Set(["L", "M"]);
 
 const ft = new Intl.NumberFormat("hu-HU", { maximumFractionDigits: 0 });
 
+/** Objektumazonosítók külön címkékként; a megjegyzés (pl. „(tűzjelző)”) halványabban az azonosító mellett. */
+export function IdChips({ ids, max }: { ids: string[]; max?: number }) {
+  if (!ids.length) return <span className="text-white/25">—</span>;
+  const shown = max ? ids.slice(0, max) : ids;
+  return (
+    <span className="flex flex-wrap gap-1.5">
+      {shown.map((id, index) => {
+        const match = id.match(/^(\d{4})\s*(.*)$/);
+        return (
+          <span key={`${id}-${index}`} className="inline-flex items-baseline gap-1 rounded-md bg-gold/10 px-1.5 py-0.5 font-mono text-xs text-gold-bright ring-1 ring-gold/20 ring-inset">
+            {match ? match[1] : id}
+            {match?.[2] && <span className="font-sans text-[0.65rem] text-white/50">{match[2]}</span>}
+          </span>
+        );
+      })}
+      {max && ids.length > max && <span className="self-center text-xs text-white/45">+{ids.length - max}</span>}
+    </span>
+  );
+}
+
 /** Az Excel-érték olvasható formában; az üres cella „—”. */
 export function formatValue(column: ClientColumn): ReactNode {
   const { value, col } = column;
@@ -15,7 +35,17 @@ export function formatValue(column: ClientColumn): ReactNode {
   if (typeof value === "number" && COUNT.has(col)) return `${value} db`;
   if (typeof value === "number" && col === "W") return `${value} nap`;
   const text = String(value);
-  // Pontosvesszővel felsorolt szerződések és objektumcímek: soronként.
+  if (col === "N") {
+    return (
+      <IdChips
+        ids={text
+          .split(",")
+          .map((part) => part.trim())
+          .filter(Boolean)}
+      />
+    );
+  }
+  // Pontosvesszővel felsorolt szerződések, objektumcímek, időszakok: soronként.
   if ((col === "J" || col === "R" || col === "X") && text.includes(";")) {
     return (
       <ul className="space-y-1">
@@ -53,6 +83,7 @@ export function formatValue(column: ClientColumn): ReactNode {
 /** Egy mező az Excel-beli kiemeléssel: piros betű vagy sárga háttér, ahogy a táblázatban volt. */
 export function ClientField({ column }: { column: ClientColumn }) {
   const marked = column.mark === "piros" ? "Az Excelben pirossal jelölve" : column.mark === "sarga" ? "Az Excelben sárgával kiemelve" : undefined;
+  const corrected = column.raw !== undefined && column.raw !== null && String(column.raw) !== String(column.value);
   return (
     <div
       className={`grid gap-1 rounded-xl px-3 py-2.5 sm:grid-cols-[13rem_1fr] sm:gap-4 ${
@@ -66,6 +97,11 @@ export function ClientField({ column }: { column: ClientColumn }) {
       <dd className={`min-w-0 text-sm [overflow-wrap:anywhere] ${column.mark === "piros" ? "font-medium text-red-300" : "text-white/90"}`}>
         {formatValue(column)}
         {marked && <span className={`mt-1 block text-[0.7rem] ${column.mark === "piros" ? "text-red-300/70" : "text-yellow-200/70"}`}>{marked}</span>}
+        {corrected && (
+          <span className="mt-1 block text-[0.7rem] text-white/40">
+            Szétválasztva – az Excelben így állt: <span className="font-mono text-white/60">{String(column.raw)}</span>
+          </span>
+        )}
       </dd>
     </div>
   );
