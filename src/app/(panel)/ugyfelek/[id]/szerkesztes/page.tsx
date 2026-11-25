@@ -42,6 +42,7 @@ async function Edit({ params }: Pick<PageProps<"/ugyfelek/[id]/szerkesztes">, "p
       </PageTitle>
       <ClientEditForm
         id={id}
+        seq={client.seq}
         version={(client.updatedAt ?? client.source.importedAt).toISOString()}
         sections={sections}
         columns={client.cols.map((column) => ({ col: column.col, label: column.label, value: column.value === null || column.value === undefined ? "" : String(column.value), mark: column.mark ?? "" }))}

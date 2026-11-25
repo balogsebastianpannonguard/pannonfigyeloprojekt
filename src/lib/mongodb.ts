@@ -35,6 +35,7 @@ async function connect(uri: string) {
     db.collection("notes").createIndex({ updatedAt: -1 }),
     db.collection("clients").createIndex({ key: 1 }, { unique: true }),
     db.collection("clients").createIndex({ order: 1 }),
+    db.collection("clients").createIndex({ seq: 1 }),
 ]).catch((error) => console.error("Indexek:", (error as Error).name));
   return client;
 }

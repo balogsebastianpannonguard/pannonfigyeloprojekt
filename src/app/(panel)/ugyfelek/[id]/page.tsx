@@ -45,7 +45,7 @@ async function Client({ params, searchParams }: Pick<PageProps<"/ugyfelek/[id]">
       )}
 
       <div className="flex flex-wrap items-start justify-between gap-4">
-        <PageTitle eyebrow={`Ügyfél · ${client.key}`} title={clientName(client)}>
+        <PageTitle eyebrow={`${client.seq}. ügyfél · ${client.key}`} title={clientName(client)}>
           Az Excel-sor minden adata, oszlopról oszlopra; a kiemelt cellák úgy látszanak, ahogy a táblázatban.
         </PageTitle>
         <div className="flex flex-wrap items-center gap-2">

@@ -57,6 +57,14 @@ const importedAt = new Date();
 const names = [];
 const fixed = [];
 const skipped = [];
+// Saját sorszám (1, 2, 3…), az Excel-sortól független: aminek még nincs, az Excel-sorrendben kap; az újak a végére kerülnek,
+// a meglévők sorszámához (amit a felületen át is lehet írni) az import nem nyúl.
+const clientsCol = db.collection("clients");
+let nextSeq = (await clientsCol.find({ seq: { $exists: true } }).sort({ seq: -1 }).limit(1).next())?.seq ?? 0;
+for (const doc of await clientsCol.find({ seq: { $exists: false } }, { projection: { _id: 1 } }).sort({ order: 1 }).toArray()) {
+  await clientsCol.updateOne({ _id: doc._id }, { $set: { seq: ++nextSeq } });
+}
+
 for (const row of data.rows) {
   const cols = row.cols.map((column) => {
     const normalized = column.col === "N" ? normalizeIds(column.value) : column.col === "R" ? normalizeAddresses(column.value) : column.value;
@@ -97,10 +105,12 @@ for (const row of data.rows) {
     { key },
     {
       $set: { status: summary.status, order: row.row, cols, summary, search, source: { file: data.file, sheet: data.sheet, row: row.row, importedAt } },
-      $setOnInsert: { _id: new ObjectId() },
+      $setOnInsert: { _id: new ObjectId(), seq: nextSeq + 1 },
     },
     { upsert: true },
-  );
+  ).then((result) => {
+    if (result.upsertedCount) nextSeq += 1;
+  });
   names.push(name);
 }
 if (skipped.length) console.log(`Kihagyva, mert a felületen szerkesztették: ${skipped.join(", ")}`);

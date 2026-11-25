@@ -56,18 +56,38 @@ export async function updateClient(_previous: FormState, formData: FormData): Pr
     return next;
   });
 
+  // Saját sorszám: ha foglalt, a két ügyfél helyet cserél.
+  const collection = await clientsCol();
+  const seqInput = String(formData.get("seq") ?? "").trim();
+  let seq = client.seq;
+  let swapWith: { _id: typeof client._id; name: string } | null = null;
+  if (seqInput && Number(seqInput) !== client.seq) {
+    const total = await collection.countDocuments();
+    const wanted = Number(seqInput);
+    if (!Number.isInteger(wanted) || wanted < 1 || wanted > total) {
+      problems.push(`Sorszám: 1 és ${total} közötti egész szám lehet`);
+    } else {
+      seq = wanted;
+      const other = await collection.findOne({ seq: wanted, _id: { $ne: client._id } }, { projection: { cols: 1, key: 1 } });
+      if (other) swapWith = { _id: other._id, name: clientName(other) };
+      changes.unshift({ field: "Sorszám", from: String(client.seq ?? ""), to: swapWith ? `${wanted} (helycsere: „${swapWith.name}” → ${client.seq})` : String(wanted) });
+    }
+  }
+
   if (problems.length) return { error: `Nem menthető: ${problems.join("; ")}.` };
   if (!changes.length) return { ok: true, message: "Nem volt változás." };
 
   const { summary, search } = computeSummary(client.key, cols);
   const now = new Date();
-  const updated = await (await clientsCol()).updateOne(
+  const updated = await collection.updateOne(
     { _id: client._id, ...(client.updatedAt ? { updatedAt: client.updatedAt } : { updatedAt: { $exists: false } }) },
-    { $set: { cols, summary, search, status: summary.status, updatedAt: now, updatedBy: user.oid } },
+    { $set: { cols, summary, search, status: summary.status, seq, updatedAt: now, updatedBy: user.oid } },
   );
   if (!updated.modifiedCount) {
     return { error: "Az adatlapot közben valaki más módosította. Töltsd újra az oldalt, és vidd fel újra a változtatásaidat." };
   }
+
+  if (updated.modifiedCount && swapWith) await collection.updateOne({ _id: swapWith._id }, { $set: { seq: client.seq } });
 
   const name = clientName({ cols, key: client.key });
   await writeLog(user, {

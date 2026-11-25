@@ -34,6 +34,8 @@ export type ClientDocument = {
   key: string;
   status: string;
   order: number;
+  /** Saját sorszám (1, 2, 3…), az Excel-sortól független; a szerkesztőben átírható. */
+  seq: number;
   cols: ClientColumn[];
   summary: ClientSummary;
   /** Kisbetűs keresőszöveg (név, vevőkód, cím, azonosítók, telefon, megjegyzés). */
@@ -53,7 +55,7 @@ export async function getClient(id: string) {
 
 /** A táblázat rendezhető oszlopai → adatbázismező. */
 export const CLIENT_SORTS = {
-  sor: "order",
+  sor: "seq",
   nev: "summary.name",
   statusz: "status",
   telepules: "summary.city",
@@ -81,11 +83,11 @@ export async function listClientRows(query: ClientQuery, { limit = 50, skip = 0 
   if (query.status) filter.status = query.status;
   if (query.marked) filter["summary.marks"] = { $gt: 0 };
   const field = CLIENT_SORTS[query.sort ?? "sor"] ?? "order";
-  const sort: Sort = { [field]: query.desc ? -1 : 1, order: 1 };
+  const sort: Sort = { [field]: query.desc ? -1 : 1, seq: 1 };
 
   const [rows, total, freqs, contracts, statuses] = await Promise.all([
     collection
-      .find(filter, { projection: { key: 1, order: 1, summary: 1, cols: 1, "source.row": 1 } })
+      .find(filter, { projection: { key: 1, order: 1, seq: 1, summary: 1, cols: 1, "source.row": 1 } })
       .collation({ locale: "hu", numericOrdering: true })
       .sort(sort)
       .skip(skip)

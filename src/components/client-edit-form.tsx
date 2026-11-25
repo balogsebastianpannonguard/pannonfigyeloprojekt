@@ -18,18 +18,32 @@ const MARKS = [
 ];
 
 /** Az ügyfél összes mezőjének szerkesztése, kiemeléssel együtt. A megváltozott mezők jelölve vannak mentés előtt. */
-export function ClientEditForm({ id, version, sections, columns }: { id: string; version: string; sections: { title: string; cols: string[] }[]; columns: EditColumn[] }) {
+export function ClientEditForm({ id, seq, version, sections, columns }: { id: string; seq: number; version: string; sections: { title: string; cols: string[] }[]; columns: EditColumn[] }) {
   const [state, action, pending] = useActionState<FormState, FormData>(updateClient, {});
   const { ref, onSubmit } = useKeepForm(action, state);
   const byCol = new Map(columns.map((column) => [column.col, column]));
   const [values, setValues] = useState(() => Object.fromEntries(columns.map((column) => [column.col, column.value])));
   const [marks, setMarks] = useState(() => Object.fromEntries(columns.map((column) => [column.col, column.mark])));
-  const changed = columns.filter((column) => values[column.col] !== column.value || marks[column.col] !== column.mark).length;
+  const [order, setOrder] = useState(String(seq));
+  const seqDirty = order.trim() !== String(seq);
+  const changed = columns.filter((column) => values[column.col] !== column.value || marks[column.col] !== column.mark).length + (seqDirty ? 1 : 0);
 
   return (
     <form ref={ref} onSubmit={onSubmit} className="space-y-6 pb-24">
       <input type="hidden" name="id" value={id} />
       <input type="hidden" name="version" value={version} />
+      <section className="pg-panel rounded-3xl p-5 sm:p-6">
+        <div className={`grid gap-2 rounded-2xl p-2 sm:grid-cols-[13rem_1fr] sm:items-center sm:gap-4 ${seqDirty ? "bg-gold/6 ring-1 ring-gold/25" : ""}`}>
+          <label htmlFor="seq" className="text-sm text-white/60">
+            Sorszám
+            {seqDirty && <span className="mt-1 block text-[0.7rem] font-semibold text-gold">módosítva</span>}
+          </label>
+          <div className="flex flex-wrap items-center gap-3">
+            <input id="seq" name="seq" value={order} onChange={(event) => setOrder(event.target.value)} inputMode="numeric" maxLength={6} className={`${fieldClass} h-11 w-28`} />
+            <span className="text-xs text-white/45">A táblázat sorrendje. Ha a szám már foglalt, a két ügyfél helyet cserél.</span>
+          </div>
+        </div>
+      </section>
       {sections.map((section) => (
         <section key={section.title} className="pg-panel rounded-3xl p-5 sm:p-6">
           <h2 className="mb-4 font-display text-lg font-semibold">{section.title}</h2>

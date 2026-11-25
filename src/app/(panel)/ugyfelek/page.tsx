@@ -192,7 +192,7 @@ async function Clients({ searchParams }: Pick<PageProps<"/ugyfelek">, "searchPar
                   const active = previewId === id;
                   return (
                     <ClickableRow key={id} href={link({ elonezet: id })} active={active}>
-                      <td className={`sticky left-0 z-10 px-3 py-2.5 align-top text-xs text-white/40 tabular-nums ${active ? "bg-[#1a1d26]" : "bg-ink-900 group-hover:bg-[#15171f]"}`}>{row.source.row}.</td>
+                      <td className={`sticky left-0 z-10 px-3 py-2.5 align-top text-xs text-white/40 tabular-nums ${active ? "bg-[#1a1d26]" : "bg-ink-900 group-hover:bg-[#15171f]"}`}>{row.seq}.</td>
                       <td className={`sticky left-14 z-10 min-w-64 px-3 py-2.5 align-top shadow-[1px_0_0_rgb(255_255_255/0.08)] ${active ? "bg-[#1a1d26]" : "bg-ink-900 group-hover:bg-[#15171f]"}`}>
                         <Link href={link({ elonezet: id })} scroll={false} className="block max-w-64 font-semibold [overflow-wrap:anywhere] group-hover:text-gold">
                           {row.summary.name}
@@ -252,7 +252,7 @@ async function Preview({ id, closeHref }: { id: string; closeHref: string }) {
         <header className="border-b border-white/8 p-5 sm:p-6">
           <div className="flex items-start gap-3">
             <div className="min-w-0 flex-1">
-              <p className="text-xs font-semibold tracking-[0.2em] text-gold uppercase">Előnézet · Excel {client.source.row}. sor</p>
+              <p className="text-xs font-semibold tracking-[0.2em] text-gold uppercase">Előnézet · {client.seq}. ügyfél</p>
               <h2 className="mt-1 font-display text-2xl leading-tight font-semibold [overflow-wrap:anywhere]">{name}</h2>
               <p className="mt-1 flex flex-wrap items-center gap-2 text-sm text-white/50">
                 {client.key}
