@@ -15,7 +15,7 @@ type DocKey = (typeof DOCS)[number]["key"];
 const url = (id: string, dok: DocKey, download = false) => `/ugyfel-dokumentumok/generalas/${id}?dok=${dok}${download ? "&letoltes=1" : ""}`;
 
 /** Soronként: „Próba generálás” (működik) és „Generálás” (egyelőre zárolva). Mindkettő ugyanazt készítené: az ügyfél saját adataival kitöltött dokumentumokat. */
-export function GenerateButtons({ id, name, filing }: { id: string; name: string; filing: string }) {
+export function GenerateButtons({ id, name, filing, contractFiling }: { id: string; name: string; filing: string; contractFiling: string }) {
   const [open, setOpen] = useState(false);
   return (
     <div className="flex flex-col items-stretch gap-1.5">
@@ -32,12 +32,12 @@ export function GenerateButtons({ id, name, filing }: { id: string; name: string
         <Lock size={14} aria-hidden /> Generálás
       </button>
       {/* A táblázat dobozán kívülre (body), hogy az ablak a teljes képernyőt kitöltse. */}
-      {open && createPortal(<Preview id={id} name={name} filing={filing} onClose={() => setOpen(false)} />, document.body)}
+      {open && createPortal(<Preview id={id} name={name} filing={filing} contractFiling={contractFiling} onClose={() => setOpen(false)} />, document.body)}
     </div>
   );
 }
 
-function Preview({ id, name, filing, onClose }: { id: string; name: string; filing: string; onClose: () => void }) {
+function Preview({ id, name, filing, contractFiling, onClose }: { id: string; name: string; filing: string; contractFiling: string; onClose: () => void }) {
   const [tab, setTab] = useState<DocKey>("ertesito-level");
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => event.key === "Escape" && onClose();
@@ -58,7 +58,9 @@ function Preview({ id, name, filing, onClose }: { id: string; name: string; fili
           <div className="flex flex-wrap items-center gap-3">
             <FlaskConical size={18} aria-hidden className="text-gold" />
             <div className="min-w-0 flex-1">
-              <p className="text-xs font-semibold tracking-[0.18em] text-gold uppercase">Próba generálás · {filing}</p>
+              <p className="text-xs font-semibold tracking-[0.18em] text-gold uppercase">
+                Próba generálás · {tab === "ertesito-level" ? `Iktatószám: ${filing}` : `Iktatószám T.SZ.SZ.: ${contractFiling}`}
+              </p>
               <h2 className="truncate font-semibold">{name}</h2>
             </div>
             <a href={url(id, tab, true)} className={buttonClass("primary", "sm")}>

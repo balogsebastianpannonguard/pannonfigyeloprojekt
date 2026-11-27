@@ -7,7 +7,7 @@ import { DocumentShelf } from "@/components/document-shelf";
 import { GenerateButtons } from "@/components/generate-buttons";
 import { PageTitle } from "@/components/page-title";
 import { Empty, Skeleton } from "@/components/ui";
-import { contractNumbers, filingNumber, listClientBasics } from "@/lib/clients";
+import { contractFilingNumber, contractNumbers, filingNumber, listClientBasics } from "@/lib/clients";
 import { listDocuments } from "@/lib/documents";
 import { requireUser } from "@/lib/session";
 
@@ -18,7 +18,7 @@ export default function ClientDocumentsPage() {
     <div className="space-y-8">
       <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
         <PageTitle eyebrow="Ügyfél-dokumentumok" title="Ügyfél" accent="dokumentumok.">
-          Az Ügyfelek oldalon szereplő ügyfelek, csak a dokumentumokhoz szükséges adatokkal: iktatószám, azonosító, szerződésszám, név és cím. A lista az Ügyfelek oldallal
+          Az Ügyfelek oldalon szereplő ügyfelek, csak a dokumentumokhoz szükséges adatokkal: iktatószámok (értesítő levél, szerződés), azonosító, szerződésszám, név és cím. A lista az Ügyfelek oldallal
           együtt frissül.
         </PageTitle>
         <Suspense fallback={<Skeleton className="h-24 lg:w-[34rem] xl:w-[40rem]" />}>
@@ -50,13 +50,20 @@ async function ClientTable() {
     <section className="pg-panel overflow-hidden rounded-3xl">
       <p className="border-b border-white/8 px-5 py-3 text-sm font-semibold">{clients.length.toLocaleString("hu-HU")} ügyfél</p>
       <div className="overflow-x-auto [scrollbar-width:thin]">
-        <table className="w-full min-w-[64rem] table-fixed border-separate border-spacing-0 text-left text-sm">
+        <table className="w-full min-w-[66rem] table-fixed border-separate border-spacing-0 text-left text-sm">
           <thead className="bg-ink-900 text-xs text-white/55 [&_th]:border-b [&_th]:border-white/10 [&_th]:px-3 [&_th]:py-3 [&_th]:font-semibold [&_th]:whitespace-nowrap">
             <tr>
-              <th scope="col" className="w-10">#</th>
-              <th scope="col" className="w-28">Iktatószám</th>
-              <th scope="col" className="w-40">Ügyfélazonosító</th>
-              <th scope="col" className="w-32">Szerződésszám</th>
+              <th scope="col" className="w-9">#</th>
+              <th scope="col" className="w-28">
+                Iktatószám
+                <span className="block font-normal text-white/35">értesítő levél</span>
+              </th>
+              <th scope="col" className="w-32">
+                Iktatószám T.SZ.SZ.
+                <span className="block font-normal text-white/35">szerződés</span>
+              </th>
+              <th scope="col" className="w-36">Ügyfélazonosító</th>
+              <th scope="col" className="w-28">Szerződésszám</th>
               <th scope="col">Ügyfél neve</th>
               <th scope="col">Címe</th>
               <th scope="col" className="w-[10.5rem]">Dokumentumok</th>
@@ -71,6 +78,7 @@ async function ClientTable() {
                 <tr key={String(client._id)} className="transition-colors hover:bg-gold/5">
                   <td className="text-xs text-white/40 tabular-nums">{client.seq}.</td>
                   <td className="font-mono text-xs font-semibold whitespace-nowrap text-gold-bright">{filingNumber(client.filingNo)}</td>
+                  <td className="font-mono text-xs font-semibold whitespace-nowrap text-sky-200">{contractFilingNumber(client.contractFilingNo)}</td>
                   <td>
                     <IdChips ids={s.ids} />
                   </td>
@@ -84,7 +92,7 @@ async function ClientTable() {
                   </td>
                   <td className="text-white/80">{address || <span className="text-white/20">—</span>}</td>
                   <td>
-                    <GenerateButtons id={String(client._id)} name={s.name} filing={filingNumber(client.filingNo)} />
+                    <GenerateButtons id={String(client._id)} name={s.name} filing={filingNumber(client.filingNo)} contractFiling={contractFilingNumber(client.contractFilingNo)} />
                   </td>
                 </tr>
               );

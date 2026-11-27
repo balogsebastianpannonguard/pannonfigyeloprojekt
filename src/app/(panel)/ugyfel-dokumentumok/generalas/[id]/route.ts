@@ -23,19 +23,21 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 
   let client = await getClient((await params).id);
   if (!client) return new Response("Az ügyfél nem található.", { status: 404 });
-  if (!client.filingNo) {
+  if (!client.filingNo || !client.contractFilingNo) {
     await assignFilingNumbers();
     client = await getClient(String(client._id));
-    if (!client?.filingNo) return new Response("Az ügyfélnek nincs iktatószáma.", { status: 409 });
+    if (!client?.filingNo || !client.contractFilingNo) return new Response("Az ügyfélnek nincs iktatószáma.", { status: 409 });
   }
   const template = await getDocument(key);
   if (!template) return new Response("A sablon nincs feltöltve.", { status: 404 });
 
   const fields = clientLetterFields(client);
+  // Az értesítő levélre a 2026-19/… iktatószám, a szerződésre a T.SZ.SZ. (2027/1/…) iktatószám kerül.
+  const filing = key === "ertesito-level" ? fields.filing : fields.contractFiling;
   let file: Buffer;
   try {
     const source = Buffer.from(template.data.buffer);
-    file = key === "ertesito-level" ? await generateLetter(source, fields) : await generateContract(source, fields.filing);
+    file = key === "ertesito-level" ? await generateLetter(source, fields) : await generateContract(source, fields.contractFiling);
   } catch (error) {
     if (error instanceof TemplateError) return new Response(`A sablon nem tölthető ki: ${error.message}`, { status: 422 });
     throw error;
@@ -44,10 +46,10 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   await writeLog(user, {
     kind: "export",
     action: download ? "document.generate.download" : "document.generate.preview",
-    text: `próba generálás (${download ? "letöltés" : "előnézet"}): ${DOCS[key].label} – „${fields.name}” (${fields.filing})`,
+    text: `próba generálás (${download ? "letöltés" : "előnézet"}): ${DOCS[key].label} – „${fields.name}” (iktatószám: ${filing})`,
     target: { type: "client", id: String(client._id), label: fields.name },
   });
-  const fileName = `${fields.filing.replace("/", "_")} ${DOCS[key].label} – ${fields.name}.docx`.replace(/[\\/:*?"<>|]/g, "-");
+  const fileName = `${filing.replaceAll("/", "_")} ${DOCS[key].label} – ${fields.name}.docx`.replace(/[\\/:*?"<>|]/g, "-");
   return new Response(new Uint8Array(file), {
     headers: {
       "Content-Type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",

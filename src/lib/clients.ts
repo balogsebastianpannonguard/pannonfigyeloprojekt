@@ -43,6 +43,8 @@ export type ClientDocument = {
   source: { file: string; sheet: string; row: number; importedAt: Date };
   /** Iktatószám sorszáma (a kiírt alak: `2026-19/<n>`). Egyszer kiadva nem változik, akkor sem, ha a sorszám igen. */
   filingNo?: number;
+  /** A távfelügyeleti szolgáltatási szerződés (T.SZ.SZ.) iktatószámának sorszáma (kiírva: `2027/1/<n>`). Egyszer kiadva nem változik. */
+  contractFilingNo?: number;
   /** A lista végén lévő jelölőnégyzetek; ami nincs itt, az üres. Nem számít szerkesztésnek (az import nem nyúl hozzá). */
   checks?: Partial<Record<CheckKey, { on: boolean; at: Date; by: ObjectId }>>;
   /** Utolsó szerkesztés a felületen. */
@@ -143,7 +145,7 @@ export async function clientStats() {
 export async function listClientBasics() {
   await assignFilingNumbers();
   return (await clientsCol())
-    .find({}, { projection: { key: 1, seq: 1, filingNo: 1, summary: 1, "cols.col": 1, "cols.value": 1 } })
+    .find({}, { projection: { key: 1, seq: 1, filingNo: 1, contractFilingNo: 1, summary: 1, "cols.col": 1, "cols.value": 1 } })
     .sort({ seq: 1 })
     .limit(5000)
     .toArray();
@@ -152,6 +154,9 @@ export async function listClientBasics() {
 /** Az iktatószám kiírt alakja. */
 export const FILING_PREFIX = "2026-19/";
 export const filingNumber = (n?: number) => (n ? `${FILING_PREFIX}${n}` : "");
+/** A szerződés (T.SZ.SZ.) iktatószámának kiírt alakja. */
+export const CONTRACT_FILING_PREFIX = "2027/1/";
+export const contractFilingNumber = (n?: number) => (n ? `${CONTRACT_FILING_PREFIX}${n}` : "");
 
 /**
  * Akinek még nincs iktatószáma, a saját sorszám sorrendjében megkapja a következő szabadot (az első ügyfél 2026-19/1).
@@ -159,12 +164,16 @@ export const filingNumber = (n?: number) => (n ? `${FILING_PREFIX}${n}` : "");
  */
 export async function assignFilingNumbers() {
   const collection = await clientsCol();
-  const missing = await collection.find({ filingNo: { $exists: false } }, { projection: { _id: 1 } }).sort({ seq: 1 }).toArray();
-  if (!missing.length) return;
-  let next = ((await collection.find({ filingNo: { $exists: true } }, { projection: { filingNo: 1 } }).sort({ filingNo: -1 }).limit(1).next())?.filingNo ?? 0) + 1;
-  for (const { _id } of missing) {
-    const result = await collection.updateOne({ _id, filingNo: { $exists: false } }, { $set: { filingNo: next } });
-    if (result.modifiedCount) next += 1;
+  // Két külön számsor: az értesítő levélé (2026-19/…) és a szerződésé (2027/1/…), mindkettő a saját sorszám sorrendjében.
+  for (const field of ["filingNo", "contractFilingNo"] as const) {
+    const missing = await collection.find({ [field]: { $exists: false } }, { projection: { _id: 1 } }).sort({ seq: 1 }).toArray();
+    if (!missing.length) continue;
+    const last = await collection.find({ [field]: { $exists: true } }, { projection: { [field]: 1 } }).sort({ [field]: -1 }).limit(1).next();
+    let next = (last?.[field] ?? 0) + 1;
+    for (const { _id } of missing) {
+      const result = await collection.updateOne({ _id, [field]: { $exists: false } }, { $set: { [field]: next } });
+      if (result.modifiedCount) next += 1;
+    }
   }
 }
 
@@ -179,12 +188,13 @@ export function contractNumbers(cols: Pick<ClientColumn, "col" | "value">[]) {
 }
 
 /** Az értesítő levél fejlécének adatai egy ügyfélhez (a táblázat oszlopaival egyezően). */
-export function clientLetterFields(client: Pick<ClientDocument, "summary" | "cols" | "key" | "filingNo">) {
+export function clientLetterFields(client: Pick<ClientDocument, "summary" | "cols" | "key" | "filingNo" | "contractFilingNo">) {
   const s = client.summary;
   const ids = s.ids.join(", ");
   const contracts = contractNumbers(client.cols).join(", ");
   return {
     filing: filingNumber(client.filingNo),
+    contractFiling: contractFilingNumber(client.contractFilingNo),
     idLine: [ids, contracts].filter(Boolean).join(" / "),
     name: s.name || client.key,
     addressLines: [[s.zip, s.city].filter(Boolean).join(" "), s.street].filter(Boolean),
