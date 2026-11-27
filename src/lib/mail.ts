@@ -36,7 +36,7 @@ export async function sendMail({
   });
   try {
     await transport.sendMail({
-      from: { name: EMAIL_FROM_NAME ?? "Balogh Sebastian · PannonGuard", address: EMAIL_USER! },
+      from: { name: EMAIL_FROM_NAME ?? "Balog Sebastian Máté · PannonGuard", address: EMAIL_USER! },
       to,
       replyTo,
       subject,

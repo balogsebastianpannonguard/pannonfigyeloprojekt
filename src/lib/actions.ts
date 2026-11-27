@@ -10,15 +10,32 @@ import { writeLog, type Change } from "@/lib/log";
 import { TASK_PRIORITY, TASK_STATUS, isPriority, isStatus, pageName, type TaskStatus } from "@/lib/meta";
 import { requireUser } from "@/lib/session";
 import { clientName, getClient } from "@/lib/clients";
-import { notifyComment } from "@/lib/task-mail";
+import { notifyTask } from "@/lib/task-mail";
 import { users } from "@/lib/users";
-import { commentsCol, getNote, getTask, notesCol, oid, postsCol, tasksCol } from "@/lib/workspace";
+import { commentsCol, getNote, getTask, notesCol, oid, postsCol, tasksCol, type TaskDocument } from "@/lib/workspace";
 
 const quote = (value: string) => `„${value}”`;
 
 /** Mindenki ugyanazt látja: egy módosítás után minden közös oldal frissül. */
 function refreshAll() {
   revalidatePath("/", "layout");
+}
+
+/**
+ * E-mail a feladat két érintettjének (aki adta és aki kapta) a válasz elküldése után, hogy a küldés ne lassítsa a felületet.
+ * Az eredmény (kinek ment el, kinek nem) a naplóba kerül.
+ */
+function notifyAfter(kind: "assigned" | "comment", task: TaskDocument, actor: Awaited<ReturnType<typeof requireUser>>, comment?: string) {
+  after(async () => {
+    const { sent, failed } = await notifyTask({ kind, task, actor, comment });
+    if (!sent.length && !failed.length) return;
+    await writeLog(actor, {
+      kind: kind === "comment" ? "comment" : "task",
+      action: kind === "comment" ? "comment.notify" : "task.notify",
+      text: `e-mail értesítés a(z) ${quote(task.title)} feladat ${kind === "comment" ? "új hozzászólásáról" : "kiadásáról"}${sent.length ? ` – elküldve: ${sent.join(", ")}` : ""}${failed.length ? ` – nem sikerült: ${failed.join(", ")}` : ""}`,
+      target: { type: "task", id: String(task._id), label: task.title },
+    });
+  });
 }
 
 async function assignee(raw: string) {
@@ -74,7 +91,7 @@ export async function createTask(_previous: FormState, formData: FormData): Prom
 
   const now = new Date();
   const _id = new ObjectId();
-  await (await tasksCol()).insertOne({
+  const created: TaskDocument = {
     _id,
     title,
     ...(description && { description }),
@@ -88,7 +105,8 @@ export async function createTask(_previous: FormState, formData: FormData): Prom
     updatedAt: now,
     updatedBy: user.oid,
     ...(status === "kesz" && { doneAt: now }),
-  });
+  };
+  await (await tasksCol()).insertOne(created);
   const extras = [TASK_STATUS[status], `prioritás: ${TASK_PRIORITY[priority]}`, person.id ? `felelős: ${person.name}` : "", due ? `határidő: ${formatShortDate(due)}` : ""]
     .filter(Boolean)
     .join(", ");
@@ -98,6 +116,7 @@ export async function createTask(_previous: FormState, formData: FormData): Prom
     text: `létrehozta a(z) ${quote(title)} feladatot (${extras})`,
     target: { type: "task", id: String(_id), label: title },
   });
+  if (created.assigneeId) notifyAfter("assigned", created, user);
   refreshAll();
   return { ok: true, message: "A feladat felkerült a táblára." };
 }
@@ -152,6 +171,10 @@ export async function updateTask(_previous: FormState, formData: FormData): Prom
     target: { type: "task", id: String(task._id), label: title },
     changes,
   });
+  // Új felelős: ő (és a feladat kiadója) értesítést kap.
+  if (person.id && String(task.assigneeId ?? "") !== String(person.id)) {
+    notifyAfter("assigned", { ...task, title, description, status, priority, due, assigneeId: person.id }, user);
+  }
   refreshAll();
   return { ok: true, message: "Mentve." };
 }
@@ -213,17 +236,7 @@ export async function addComment(_previous: FormState, formData: FormData): Prom
     text: `hozzászólt a(z) ${quote(task.title)} feladathoz: ${quote(body.slice(0, 140))}`,
     target: { type: "task", id: String(task._id), label: task.title },
   });
-  // E-mail a feladat létrehozójának és felelősének (a válasz után, hogy a küldés ne lassítsa a felületet).
-  after(async () => {
-    const { sent, failed } = await notifyComment({ task, author: user, comment: body });
-    if (!sent.length && !failed.length) return;
-    await writeLog(user, {
-      kind: "comment",
-      action: "comment.notify",
-      text: `e-mail értesítés a(z) ${quote(task.title)} feladat új hozzászólásáról${sent.length ? ` – elküldve: ${sent.join(", ")}` : ""}${failed.length ? ` – nem sikerült: ${failed.join(", ")}` : ""}`,
-      target: { type: "task", id: String(task._id), label: task.title },
-    });
-  });
+  notifyAfter("comment", task, user, body);
   refreshAll();
   return { ok: true };
 }
