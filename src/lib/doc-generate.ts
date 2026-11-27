@@ -174,7 +174,8 @@ export async function generateLetter(template: Buffer, data: LetterData) {
     const match = paragraphs[index];
     out = out.slice(0, match.index) + replacements.get(index)! + out.slice(match.index! + match[0].length);
   }
-  zip.file("word/document.xml", out, { createFolders: false });
+  // Az eredeti dátummal: ugyanazokból az adatokból bájtra ugyanaz a fájl készül (erre épül a nyomtatási PDF azonosítása).
+  zip.file("word/document.xml", out, { createFolders: false, date: file.date });
   return zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE", mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" });
 }
 
@@ -187,6 +188,6 @@ export async function generateContract(template: Buffer, filing: string) {
   const paragraphs = [...xml.matchAll(PARAGRAPH)].map((m) => m[0]).filter((p) => /Iktatószám:\s*[….]+/.test(paragraphText(p)));
   if (paragraphs.length !== 1) throw new TemplateError("A szerződésben nem található (pontosan egy) „Iktatószám:……” mező.");
   const filled = fillFiling(paragraphs[0], filing);
-  zip.file("word/document.xml", xml.replace(paragraphs[0], () => filled), { createFolders: false });
+  zip.file("word/document.xml", xml.replace(paragraphs[0], () => filled), { createFolders: false, date: file.date });
   return zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE", mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" });
 }

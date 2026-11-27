@@ -125,3 +125,42 @@ export async function setClientCheck(id: string, key: string, on: boolean): Prom
   revalidatePath("/ugyfelek");
   return {};
 }
+
+const PRINT_DOCS = { "ertesito-level": "Értesítő levél", szerzodes: "Távfelügyeleti szolgáltatási szerződés" } as const;
+
+/** Nyomtatás jelölése (a Nyomtatás gomb hívja): az ügyfél sora zöld lesz. Naplózva. */
+export async function markPrinted(id: string, dok: string): Promise<{ error?: string }> {
+  const user = await requireUser();
+  if (!(dok in PRINT_DOCS)) return { error: "Ismeretlen dokumentum." };
+  const client = await getClient(String(id));
+  if (!client) return { error: "Az ügyfél nem található." };
+  const label = PRINT_DOCS[dok as keyof typeof PRINT_DOCS];
+  await (await clientsCol()).updateOne({ _id: client._id }, { $set: { [`printed.${dok}`]: { at: new Date(), by: user.oid, byName: user.name } } });
+  const name = clientName(client);
+  await writeLog(user, {
+    kind: "client",
+    action: "client.print",
+    text: `kinyomtatta: ${label} – „${name}” ügyfél`,
+    target: { type: "client", id: String(client._id), label: name },
+  });
+  revalidatePath("/ugyfel-dokumentumok");
+  return {};
+}
+
+/** Nyomtatás jelölésének visszavonása (pl. ha a nyomtatás mégsem történt meg). Naplózva. */
+export async function clearPrinted(id: string): Promise<{ error?: string }> {
+  const user = await requireUser();
+  const client = await getClient(String(id));
+  if (!client) return { error: "Az ügyfél nem található." };
+  if (!client.printed || !Object.keys(client.printed).length) return {};
+  await (await clientsCol()).updateOne({ _id: client._id }, { $unset: { printed: "" } });
+  const name = clientName(client);
+  await writeLog(user, {
+    kind: "client",
+    action: "client.print.undo",
+    text: `visszavonta a nyomtatás jelölését – „${name}” ügyfél`,
+    target: { type: "client", id: String(client._id), label: name },
+  });
+  revalidatePath("/ugyfel-dokumentumok");
+  return {};
+}

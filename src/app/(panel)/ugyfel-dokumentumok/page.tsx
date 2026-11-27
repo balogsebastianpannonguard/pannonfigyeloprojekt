@@ -4,7 +4,7 @@ import { Suspense } from "react";
 import { Building2 } from "lucide-react";
 import { IdChips } from "@/components/client-bits";
 import { DocumentShelf } from "@/components/document-shelf";
-import { GenerateButtons } from "@/components/generate-buttons";
+import { GenerateButtons, type PrintedInfo } from "@/components/generate-buttons";
 import { PageTitle } from "@/components/page-title";
 import { Empty, Skeleton } from "@/components/ui";
 import { contractFilingNumber, contractNumbers, filingNumber, listClientBasics } from "@/lib/clients";
@@ -12,6 +12,8 @@ import { listDocuments } from "@/lib/documents";
 import { requireUser } from "@/lib/session";
 
 export const metadata: Metadata = { title: "Ügyfél-dokumentumok" };
+
+const printedAt = new Intl.DateTimeFormat("hu-HU", { timeZone: "Europe/Budapest", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
 
 export default function ClientDocumentsPage() {
   return (
@@ -74,8 +76,17 @@ async function ClientTable() {
               const s = client.summary;
               const contracts = contractNumbers(client.cols);
               const address = [s.zip, s.city].filter(Boolean).join(" ") + (s.street ? `, ${s.street}` : "");
+              const printed: PrintedInfo = {};
+              for (const [dok, info] of Object.entries(client.printed ?? {})) {
+                if (info) printed[dok as keyof PrintedInfo] = `${printedAt.format(info.at)} · ${info.byName}`;
+              }
+              const isPrinted = Object.keys(printed).length > 0;
               return (
-                <tr key={String(client._id)} className="transition-colors hover:bg-gold/5">
+                <tr
+                  key={String(client._id)}
+                  data-printed={isPrinted || undefined}
+                  className={`transition-colors ${isPrinted ? "!bg-emerald-500/[0.11] shadow-[inset_3px_0_0_var(--color-emerald-400)] hover:!bg-emerald-500/[0.16]" : "hover:bg-gold/5"}`}
+                >
                   <td className="text-xs text-white/40 tabular-nums">{client.seq}.</td>
                   <td className="font-mono text-xs font-semibold whitespace-nowrap text-gold-bright">{filingNumber(client.filingNo)}</td>
                   <td className="font-mono text-xs font-semibold whitespace-nowrap text-sky-200">{contractFilingNumber(client.contractFilingNo)}</td>
@@ -92,7 +103,7 @@ async function ClientTable() {
                   </td>
                   <td className="text-white/80">{address || <span className="text-white/20">—</span>}</td>
                   <td>
-                    <GenerateButtons id={String(client._id)} name={s.name} filing={filingNumber(client.filingNo)} contractFiling={contractFilingNumber(client.contractFilingNo)} />
+                    <GenerateButtons id={String(client._id)} name={s.name} filing={filingNumber(client.filingNo)} contractFiling={contractFilingNumber(client.contractFilingNo)} printed={printed} />
                   </td>
                 </tr>
               );

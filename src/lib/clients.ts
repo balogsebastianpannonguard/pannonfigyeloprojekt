@@ -45,6 +45,8 @@ export type ClientDocument = {
   filingNo?: number;
   /** A távfelügyeleti szolgáltatási szerződés (T.SZ.SZ.) iktatószámának sorszáma (kiírva: `2027/1/<n>`). Egyszer kiadva nem változik. */
   contractFilingNo?: number;
+  /** Mikor és ki nyomtatta ki az ügyfél kitöltött dokumentumait (ha bármelyik ki van nyomtatva, a sor zöld). */
+  printed?: Partial<Record<"ertesito-level" | "szerzodes", { at: Date; by: ObjectId; byName: string }>>;
   /** A lista végén lévő jelölőnégyzetek; ami nincs itt, az üres. Nem számít szerkesztésnek (az import nem nyúl hozzá). */
   checks?: Partial<Record<CheckKey, { on: boolean; at: Date; by: ObjectId }>>;
   /** Utolsó szerkesztés a felületen. */
@@ -145,7 +147,7 @@ export async function clientStats() {
 export async function listClientBasics() {
   await assignFilingNumbers();
   return (await clientsCol())
-    .find({}, { projection: { key: 1, seq: 1, filingNo: 1, contractFilingNo: 1, summary: 1, "cols.col": 1, "cols.value": 1 } })
+    .find({}, { projection: { key: 1, seq: 1, filingNo: 1, contractFilingNo: 1, printed: 1, summary: 1, "cols.col": 1, "cols.value": 1 } })
     .sort({ seq: 1 })
     .limit(5000)
     .toArray();
