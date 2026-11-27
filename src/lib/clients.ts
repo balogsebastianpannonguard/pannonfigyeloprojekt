@@ -137,6 +137,25 @@ export async function clientStats() {
   return stats ?? { total: 0, ok: 0, fee: 0, debtors: 0, debt: 0, marked: 0, p1: 0, p2: 0 };
 }
 
+/** Az ügyfél-dokumentumok táblázatához: minden ügyfél a saját sorszám szerint, csak a szükséges mezőkkel. */
+export async function listClientBasics() {
+  return (await clientsCol())
+    .find({}, { projection: { key: 1, seq: 1, summary: 1, "cols.col": 1, "cols.value": 1 } })
+    .sort({ seq: 1 })
+    .limit(5000)
+    .toArray();
+}
+
+/** Szerződésszámok a „Szerződések” (J) oszlopból: „SZE2604/1 – Féléves – …; PG24/000169 – …” → ["SZE2604/1", "PG24/000169"]. */
+export function contractNumbers(cols: Pick<ClientColumn, "col" | "value">[]) {
+  const value = cols.find((column) => column.col === "J")?.value;
+  if (value === null || value === undefined || value === "") return [];
+  return String(value)
+    .split(";")
+    .map((part) => part.split(/\s+[–-]\s+/)[0].trim())
+    .filter(Boolean);
+}
+
 export async function clientSource() {
   return (await clientsCol()).findOne({}, { projection: { source: 1 }, sort: { "source.importedAt": -1 } });
 }
