@@ -302,3 +302,13 @@ body {
     max-width: none !important;
   }
 }
+
+/* Word-előnézet (docx-preview): a lapok a szürke háttéren, a képernyőhöz igazítva. */
+.pg-docx .docx-wrapper {
+  background: transparent;
+  padding: 1.5rem 0.75rem;
+}
+.pg-docx .docx-wrapper > section.docx {
+  margin-bottom: 1.5rem;
+  box-shadow: 0 6px 24px rgb(0 0 0 / 0.18);
+}

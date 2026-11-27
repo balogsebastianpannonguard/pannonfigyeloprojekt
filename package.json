@@ -10,6 +10,7 @@
     "seed:test": "node --env-file=.env.local scripts/seed-test-user.mjs"
   },
   "dependencies": {
+    "docx-preview": "^0.4.1",
     "lucide-react": "^1.66.0",
     "mongodb": "^7.8.0",
     "next": "^16.4.6",
