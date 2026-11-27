@@ -7,6 +7,16 @@ export type Mark = "piros" | "sarga";
 export type CellValue = string | number | null;
 export type ColumnLike = { col: string; label: string; value: CellValue; mark?: Mark; raw?: CellValue };
 
+/**
+ * A lista végén lévő két jelölőnégyzet (alapból mindkettő üres). A felirat itt egy helyen átírható;
+ * a kulcs (`p1`, `p2`) az adatbázisban marad, így átnevezéskor a meglévő pipák megmaradnak.
+ */
+export const CLIENT_CHECKS = [
+  { key: "p1", label: "1. pipa" },
+  { key: "p2", label: "2. pipa" },
+] as const;
+export type CheckKey = (typeof CLIENT_CHECKS)[number]["key"];
+
 /** Forintos oszlopok. */
 export const MONEY_COLS = new Set(["K", "S", "T", "U", "Y"]);
 /** Darabszám-oszlopok. */

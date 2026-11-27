@@ -11,11 +11,11 @@ export function ClickableRow({ href, active, children }: { href: string; active?
       tabIndex={0}
       aria-selected={active}
       onClick={(event) => {
-        if ((event.target as HTMLElement).closest("a, button, input, select, textarea")) return;
+        if ((event.target as HTMLElement).closest("a, button, input, select, textarea, label")) return;
         router.push(href, { scroll: false });
       }}
       onKeyDown={(event) => {
-        if (event.key === "Enter") router.push(href, { scroll: false });
+        if (event.key === "Enter" && event.target === event.currentTarget) router.push(href, { scroll: false });
       }}
       className={`group cursor-pointer transition-colors outline-none hover:bg-gold/5 focus-visible:bg-gold/8 ${active ? "bg-gold/8" : ""}`}
     >

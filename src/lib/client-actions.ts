@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { cellString, computeSummary, parseCell, type Mark } from "@/lib/client-fields";
+import { CLIENT_CHECKS, cellString, computeSummary, parseCell, type Mark } from "@/lib/client-fields";
 import { clientName, clientsCol, getClient, type ClientColumn } from "@/lib/clients";
 import type { FormState } from "@/lib/form";
 import { writeLog, type Change } from "@/lib/log";
@@ -99,4 +99,29 @@ export async function updateClient(_previous: FormState, formData: FormData): Pr
   });
   revalidatePath("/", "layout");
   redirect(`/ugyfelek/${client._id}?mentve=${changes.length}`);
+}
+
+/**
+ * A lista végén lévő jelölőnégyzet be- vagy kipipálása. Nem érinti az ügyfél adatait (és a szerkesztés
+ * ütközésfigyelését sem), de ki mikor pipálta, az a naplóba kerül.
+ */
+export async function setClientCheck(id: string, key: string, on: boolean): Promise<{ error?: string }> {
+  const user = await requireUser();
+  const check = CLIENT_CHECKS.find((item) => item.key === key);
+  if (!check || typeof on !== "boolean") return { error: "Ismeretlen jelölőnégyzet." };
+  const client = await getClient(String(id));
+  if (!client) return { error: "Az ügyfél nem található." };
+  if (Boolean(client.checks?.[check.key]?.on) === on) return {};
+
+  await (await clientsCol()).updateOne({ _id: client._id }, { $set: { [`checks.${check.key}`]: { on, at: new Date(), by: user.oid } } });
+  const name = clientName(client);
+  await writeLog(user, {
+    kind: "client",
+    action: "client.check",
+    text: `${on ? "bepipálta" : "kivette a pipát"}: „${check.label}” – „${name}” ügyfél`,
+    target: { type: "client", id: String(client._id), label: name },
+    changes: [{ field: check.label, from: on ? "üres" : "pipa", to: on ? "pipa" : "üres" }],
+  });
+  revalidatePath("/ugyfelek");
+  return {};
 }
