@@ -157,7 +157,7 @@ export const filingNumber = (n?: number) => (n ? `${FILING_PREFIX}${n}` : "");
  * Akinek még nincs iktatószáma, a saját sorszám sorrendjében megkapja a következő szabadot (az első ügyfél 2026-19/1).
  * Feltételes írás: ha két kérés egyszerre futna, egy ügyfél akkor sem kap két számot.
  */
-async function assignFilingNumbers() {
+export async function assignFilingNumbers() {
   const collection = await clientsCol();
   const missing = await collection.find({ filingNo: { $exists: false } }, { projection: { _id: 1 } }).sort({ seq: 1 }).toArray();
   if (!missing.length) return;
@@ -176,6 +176,19 @@ export function contractNumbers(cols: Pick<ClientColumn, "col" | "value">[]) {
     .split(";")
     .map((part) => part.split(/\s+[–-]\s+/)[0].trim())
     .filter(Boolean);
+}
+
+/** Az értesítő levél fejlécének adatai egy ügyfélhez (a táblázat oszlopaival egyezően). */
+export function clientLetterFields(client: Pick<ClientDocument, "summary" | "cols" | "key" | "filingNo">) {
+  const s = client.summary;
+  const ids = s.ids.join(", ");
+  const contracts = contractNumbers(client.cols).join(", ");
+  return {
+    filing: filingNumber(client.filingNo),
+    idLine: [ids, contracts].filter(Boolean).join(" / "),
+    name: s.name || client.key,
+    addressLines: [[s.zip, s.city].filter(Boolean).join(" "), s.street].filter(Boolean),
+  };
 }
 
 export async function clientSource() {

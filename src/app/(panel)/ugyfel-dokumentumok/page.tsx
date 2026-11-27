@@ -4,6 +4,7 @@ import { Suspense } from "react";
 import { Building2 } from "lucide-react";
 import { IdChips } from "@/components/client-bits";
 import { DocumentShelf } from "@/components/document-shelf";
+import { GenerateButtons } from "@/components/generate-buttons";
 import { PageTitle } from "@/components/page-title";
 import { Empty, Skeleton } from "@/components/ui";
 import { contractNumbers, filingNumber, listClientBasics } from "@/lib/clients";
@@ -49,15 +50,16 @@ async function ClientTable() {
     <section className="pg-panel overflow-hidden rounded-3xl">
       <p className="border-b border-white/8 px-5 py-3 text-sm font-semibold">{clients.length.toLocaleString("hu-HU")} ügyfél</p>
       <div className="overflow-x-auto [scrollbar-width:thin]">
-        <table className="w-full min-w-[62rem] border-separate border-spacing-0 text-left text-sm">
+        <table className="w-full min-w-[64rem] table-fixed border-separate border-spacing-0 text-left text-sm">
           <thead className="bg-ink-900 text-xs text-white/55 [&_th]:border-b [&_th]:border-white/10 [&_th]:px-3 [&_th]:py-3 [&_th]:font-semibold [&_th]:whitespace-nowrap">
             <tr>
-              <th scope="col" className="w-12">#</th>
-              <th scope="col" className="w-32">Iktatószám</th>
-              <th scope="col" className="w-48">Ügyfélazonosító</th>
-              <th scope="col" className="w-44">Szerződésszám</th>
+              <th scope="col" className="w-10">#</th>
+              <th scope="col" className="w-28">Iktatószám</th>
+              <th scope="col" className="w-40">Ügyfélazonosító</th>
+              <th scope="col" className="w-32">Szerződésszám</th>
               <th scope="col">Ügyfél neve</th>
               <th scope="col">Címe</th>
+              <th scope="col" className="w-[10.5rem]">Dokumentumok</th>
             </tr>
           </thead>
           <tbody className="[&_td]:border-b [&_td]:border-white/6 [&_td]:px-3 [&_td]:py-2 [&_td]:align-top [&>tr:nth-child(even)]:bg-white/[0.025]">
@@ -81,6 +83,9 @@ async function ClientTable() {
                     </Link>
                   </td>
                   <td className="text-white/80">{address || <span className="text-white/20">—</span>}</td>
+                  <td>
+                    <GenerateButtons id={String(client._id)} name={s.name} filing={filingNumber(client.filingNo)} />
+                  </td>
                 </tr>
               );
             })}
