@@ -2,6 +2,7 @@
 
 import { ObjectId } from "mongodb";
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { redirect } from "next/navigation";
 import { formatShortDate } from "@/lib/dates";
 import { DAY, longText, text, type FormState } from "@/lib/form";
@@ -9,6 +10,7 @@ import { writeLog, type Change } from "@/lib/log";
 import { TASK_PRIORITY, TASK_STATUS, isPriority, isStatus, pageName, type TaskStatus } from "@/lib/meta";
 import { requireUser } from "@/lib/session";
 import { clientName, getClient } from "@/lib/clients";
+import { notifyComment } from "@/lib/task-mail";
 import { users } from "@/lib/users";
 import { commentsCol, getNote, getTask, notesCol, oid, postsCol, tasksCol } from "@/lib/workspace";
 
@@ -210,6 +212,17 @@ export async function addComment(_previous: FormState, formData: FormData): Prom
     action: "comment.create",
     text: `hozzászólt a(z) ${quote(task.title)} feladathoz: ${quote(body.slice(0, 140))}`,
     target: { type: "task", id: String(task._id), label: task.title },
+  });
+  // E-mail a feladat létrehozójának és felelősének (a válasz után, hogy a küldés ne lassítsa a felületet).
+  after(async () => {
+    const { sent, failed } = await notifyComment({ task, author: user, comment: body });
+    if (!sent.length && !failed.length) return;
+    await writeLog(user, {
+      kind: "comment",
+      action: "comment.notify",
+      text: `e-mail értesítés a(z) ${quote(task.title)} feladat új hozzászólásáról${sent.length ? ` – elküldve: ${sent.join(", ")}` : ""}${failed.length ? ` – nem sikerült: ${failed.join(", ")}` : ""}`,
+      target: { type: "task", id: String(task._id), label: task.title },
+    });
   });
   refreshAll();
   return { ok: true };
