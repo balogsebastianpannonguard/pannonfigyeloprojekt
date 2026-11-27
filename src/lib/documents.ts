@@ -16,6 +16,8 @@ export type DocumentFile = {
   contentType: string;
   size: number;
   data: Binary;
+  /** Az előnézethez: a Wordből/LibreOffice-ból készült PDF, oldalhű megjelenítéshez. Ha nincs, a böngésző maga rajzolja ki a .docx-et. */
+  pdf?: Binary;
   /** Sorrend a felületen. */
   order: number;
   uploadedAt: Date;
@@ -25,7 +27,9 @@ export const documentsCol = async () => (await getDb()).collection<DocumentFile>
 
 /** A listához: minden, kivéve magát a fájlt. */
 export async function listDocuments() {
-  return (await documentsCol()).find({}, { projection: { data: 0 } }).sort({ order: 1, title: 1 }).toArray();
+  const col = await documentsCol();
+  const withPdf = new Set((await col.find({ pdf: { $exists: true } }, { projection: { slug: 1 } }).toArray()).map((d) => d.slug));
+  return (await col.find({}, { projection: { data: 0, pdf: 0 } }).sort({ order: 1, title: 1 }).toArray()).map((d) => ({ ...d, hasPdf: withPdf.has(d.slug) }));
 }
 
 export async function getDocument(slug: string) {

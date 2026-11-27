@@ -1,6 +1,11 @@
 // Word-sablon feltöltése az adatbázisba (a repó nyilvános, a fájl nem kerülhet bele).
 //
-//   node --env-file=.env.local scripts/upload-document.mjs <fájl.docx> <slug> "<cím>" "<leírás>" [sorrend]
+//   node --env-file=.env.local scripts/upload-document.mjs <fájl.docx> <slug> "<cím>" "<leírás>" [sorrend] [előnézet.pdf]
+//
+// Az előnézet-PDF oldalhűen mutatja a dokumentumot; nélküle a böngésző maga rajzolja ki a .docx-et.
+// PDF készítése LibreOffice-szal, a valódi Times New Roman betűvel (különben a Liberation Serif helyettesítőt használja):
+//   mkdir -p /tmp/lo/user/fonts && cp "/System/Library/Fonts/Supplemental/Times New Roman"*.ttf /tmp/lo/user/fonts/
+//   soffice --headless -env:UserInstallation=file:///tmp/lo --convert-to pdf fájl.docx
 //
 // Éles adatbázisba csak akkor ír, ha IMPORT_CONFIRM pontosan a MONGODB_DB nevével egyezik.
 // Ugyanazzal a sluggal újrafuttatva lecseréli a fájlt; a csere a közös naplóba kerül.
@@ -9,7 +14,7 @@ import { basename } from "node:path";
 import { Binary, MongoClient, ObjectId } from "mongodb";
 
 const { MONGODB_URI, MONGODB_DB, IMPORT_CONFIRM } = process.env;
-const [file, slug, title, description = "", order = "0"] = process.argv.slice(2);
+const [file, slug, title, description = "", order = "0", pdfFile] = process.argv.slice(2);
 if (!file || !slug || !title) throw new Error('Használat: upload-document.mjs <fájl.docx> <slug> "<cím>" "<leírás>" [sorrend]');
 if (!/^[a-z0-9-]{1,60}$/.test(slug)) throw new Error("A slug csak kisbetű, szám és kötőjel lehet.");
 if (!MONGODB_DB.endsWith("_teszt") && IMPORT_CONFIRM !== MONGODB_DB) {
@@ -34,7 +39,9 @@ const result = await db.collection("documents").updateOne(
       data: new Binary(data),
       order: Number(order) || 0,
       uploadedAt: now,
+      ...(pdfFile && { pdf: new Binary(readFileSync(pdfFile)) }),
     },
+    ...(pdfFile ? {} : { $unset: { pdf: "" } }),
     $setOnInsert: { _id: new ObjectId() },
   },
   { upsert: true },

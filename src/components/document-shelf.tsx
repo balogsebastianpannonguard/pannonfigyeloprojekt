@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Download, Eye, FileText, LoaderCircle, X } from "lucide-react";
 import { buttonClass } from "@/components/ui";
 
-export type ShelfDocument = { slug: string; title: string; description: string; fileName: string; size: number };
+export type ShelfDocument = { slug: string; title: string; description: string; fileName: string; size: number; hasPdf: boolean };
 
 const fileUrl = (slug: string, download = false) => `/ugyfel-dokumentumok/fajl/${encodeURIComponent(slug)}${download ? "?letoltes=1" : ""}`;
 
@@ -36,14 +36,14 @@ export function DocumentShelf({ documents }: { documents: ShelfDocument[] }) {
           </li>
         ))}
       </ul>
-      {open && <Preview document={open} onClose={() => setOpen(null)} />}
+      {open && <Preview key={open.slug} document={open} onClose={() => setOpen(null)} />}
     </>
   );
 }
 
 function Preview({ document, onClose }: { document: ShelfDocument; onClose: () => void }) {
   const body = useRef<HTMLDivElement>(null);
-  const [state, setState] = useState<"loading" | "ready" | "error">("loading");
+  const [state, setState] = useState<"loading" | "ready" | "error">(document.hasPdf ? "ready" : "loading");
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => event.key === "Escape" && onClose();
@@ -57,6 +57,7 @@ function Preview({ document, onClose }: { document: ShelfDocument; onClose: () =
   }, [onClose]);
 
   useEffect(() => {
+    if (document.hasPdf) return;
     let cancelled = false;
     (async () => {
       try {
@@ -74,7 +75,7 @@ function Preview({ document, onClose }: { document: ShelfDocument; onClose: () =
     return () => {
       cancelled = true;
     };
-  }, [document.slug]);
+  }, [document.slug, document.hasPdf]);
 
   return (
     <div className="fixed inset-0 z-50" role="dialog" aria-modal="true" aria-label={`${document.title} – előnézet`}>
@@ -107,7 +108,11 @@ function Preview({ document, onClose }: { document: ShelfDocument; onClose: () =
               )}
             </div>
           )}
-          <div ref={body} className="pg-docx text-black" />
+          {document.hasPdf ? (
+            <iframe src={`${fileUrl(document.slug)}?pdf=1#view=FitH`} title={`${document.title} – előnézet`} className="absolute inset-0 size-full border-0" />
+          ) : (
+            <div ref={body} className="pg-docx text-black" />
+          )}
         </div>
       </div>
     </div>

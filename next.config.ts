@@ -41,8 +41,13 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
-        source: "/:path*",
+        source: "/((?!ugyfel-dokumentumok/fajl/).*)",
         headers: [{ key: "Content-Security-Policy", value: contentSecurityPolicy }, { key: "X-Frame-Options", value: "DENY" }, ...common],
+      },
+      // A dokumentum-előnézet (PDF) a saját oldalunkba ágyazva jelenik meg; máshová nem ágyazható be.
+      {
+        source: "/ugyfel-dokumentumok/fajl/:slug",
+        headers: [{ key: "Content-Security-Policy", value: "frame-ancestors 'self'" }, { key: "X-Frame-Options", value: "SAMEORIGIN" }, ...common],
       },
     ];
   },

@@ -36,7 +36,7 @@ async function Documents() {
   const documents = await listDocuments();
   return (
     <DocumentShelf
-      documents={documents.map(({ slug, title, description, fileName, size }) => ({ slug, title, description, fileName, size }))}
+      documents={documents.map(({ slug, title, description, fileName, size, hasPdf }) => ({ slug, title, description, fileName, size, hasPdf }))}
     />
   );
 }
