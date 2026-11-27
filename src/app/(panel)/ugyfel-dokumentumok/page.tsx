@@ -6,7 +6,7 @@ import { IdChips } from "@/components/client-bits";
 import { DocumentShelf } from "@/components/document-shelf";
 import { PageTitle } from "@/components/page-title";
 import { Empty, Skeleton } from "@/components/ui";
-import { contractNumbers, listClientBasics } from "@/lib/clients";
+import { contractNumbers, filingNumber, listClientBasics } from "@/lib/clients";
 import { listDocuments } from "@/lib/documents";
 import { requireUser } from "@/lib/session";
 
@@ -17,7 +17,7 @@ export default function ClientDocumentsPage() {
     <div className="space-y-8">
       <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
         <PageTitle eyebrow="Ügyfél-dokumentumok" title="Ügyfél" accent="dokumentumok.">
-          Az Ügyfelek oldalon szereplő ügyfelek, csak a dokumentumokhoz szükséges adatokkal: azonosító, szerződésszám, név és cím. A lista az Ügyfelek oldallal
+          Az Ügyfelek oldalon szereplő ügyfelek, csak a dokumentumokhoz szükséges adatokkal: iktatószám, azonosító, szerződésszám, név és cím. A lista az Ügyfelek oldallal
           együtt frissül.
         </PageTitle>
         <Suspense fallback={<Skeleton className="h-24 lg:w-[34rem] xl:w-[40rem]" />}>
@@ -49,10 +49,11 @@ async function ClientTable() {
     <section className="pg-panel overflow-hidden rounded-3xl">
       <p className="border-b border-white/8 px-5 py-3 text-sm font-semibold">{clients.length.toLocaleString("hu-HU")} ügyfél</p>
       <div className="overflow-x-auto [scrollbar-width:thin]">
-        <table className="w-full min-w-[56rem] border-separate border-spacing-0 text-left text-sm">
+        <table className="w-full min-w-[62rem] border-separate border-spacing-0 text-left text-sm">
           <thead className="bg-ink-900 text-xs text-white/55 [&_th]:border-b [&_th]:border-white/10 [&_th]:px-3 [&_th]:py-3 [&_th]:font-semibold [&_th]:whitespace-nowrap">
             <tr>
               <th scope="col" className="w-12">#</th>
+              <th scope="col" className="w-32">Iktatószám</th>
               <th scope="col" className="w-48">Ügyfélazonosító</th>
               <th scope="col" className="w-44">Szerződésszám</th>
               <th scope="col">Ügyfél neve</th>
@@ -67,6 +68,7 @@ async function ClientTable() {
               return (
                 <tr key={String(client._id)} className="transition-colors hover:bg-gold/5">
                   <td className="text-xs text-white/40 tabular-nums">{client.seq}.</td>
+                  <td className="font-mono text-xs font-semibold whitespace-nowrap text-gold-bright">{filingNumber(client.filingNo)}</td>
                   <td>
                     <IdChips ids={s.ids} />
                   </td>

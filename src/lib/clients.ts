@@ -41,6 +41,8 @@ export type ClientDocument = {
   /** Kisbetűs keresőszöveg (név, vevőkód, cím, azonosítók, telefon, megjegyzés). */
   search: string;
   source: { file: string; sheet: string; row: number; importedAt: Date };
+  /** Iktatószám sorszáma (a kiírt alak: `2026-19/<n>`). Egyszer kiadva nem változik, akkor sem, ha a sorszám igen. */
+  filingNo?: number;
   /** A lista végén lévő jelölőnégyzetek; ami nincs itt, az üres. Nem számít szerkesztésnek (az import nem nyúl hozzá). */
   checks?: Partial<Record<CheckKey, { on: boolean; at: Date; by: ObjectId }>>;
   /** Utolsó szerkesztés a felületen. */
@@ -139,11 +141,31 @@ export async function clientStats() {
 
 /** Az ügyfél-dokumentumok táblázatához: minden ügyfél a saját sorszám szerint, csak a szükséges mezőkkel. */
 export async function listClientBasics() {
+  await assignFilingNumbers();
   return (await clientsCol())
-    .find({}, { projection: { key: 1, seq: 1, summary: 1, "cols.col": 1, "cols.value": 1 } })
+    .find({}, { projection: { key: 1, seq: 1, filingNo: 1, summary: 1, "cols.col": 1, "cols.value": 1 } })
     .sort({ seq: 1 })
     .limit(5000)
     .toArray();
+}
+
+/** Az iktatószám kiírt alakja. */
+export const FILING_PREFIX = "2026-19/";
+export const filingNumber = (n?: number) => (n ? `${FILING_PREFIX}${n}` : "");
+
+/**
+ * Akinek még nincs iktatószáma, a saját sorszám sorrendjében megkapja a következő szabadot (az első ügyfél 2026-19/1).
+ * Feltételes írás: ha két kérés egyszerre futna, egy ügyfél akkor sem kap két számot.
+ */
+async function assignFilingNumbers() {
+  const collection = await clientsCol();
+  const missing = await collection.find({ filingNo: { $exists: false } }, { projection: { _id: 1 } }).sort({ seq: 1 }).toArray();
+  if (!missing.length) return;
+  let next = ((await collection.find({ filingNo: { $exists: true } }, { projection: { filingNo: 1 } }).sort({ filingNo: -1 }).limit(1).next())?.filingNo ?? 0) + 1;
+  for (const { _id } of missing) {
+    const result = await collection.updateOne({ _id, filingNo: { $exists: false } }, { $set: { filingNo: next } });
+    if (result.modifiedCount) next += 1;
+  }
 }
 
 /** Szerződésszámok a „Szerződések” (J) oszlopból: „SZE2604/1 – Féléves – …; PG24/000169 – …” → ["SZE2604/1", "PG24/000169"]. */
